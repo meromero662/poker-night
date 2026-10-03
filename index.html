@@ -567,6 +567,7 @@
       <button id="tabCash" onclick="setTab('cash')">Cashout</button>
 
       <button id="tabSettle" onclick="setTab('settle')">Settle</button>
+      <button id="tabArchive" onclick="setTab('archive')">Archive</button>
 
     </nav>
 
@@ -601,6 +602,51 @@
 
       let dbDoc = firestore.doc("session/main");
       let currentUser = null;
+
+      let archivedGames = [];
+      let archiveLoaded = false;
+
+      async function loadArchive() {
+        try {
+          const snap = await firestore
+            .collection("archive")
+            .orderBy("archivedAt", "desc")
+            .get();
+
+          archivedGames = snap.docs.map((doc) => ({
+            id: doc.id,
+            ...doc.data()
+          }));
+
+          archiveLoaded = true;
+        } catch (e) {
+          console.error("Archive load failed", e);
+          archivedGames = [];
+          archiveLoaded = true;
+          alert("Could not load the game archive.");
+        }
+
+        render();
+      }
+
+      async function deleteArchivedGame(id) {
+        if (!auth.currentUser) {
+          alert("Sign in with Google to delete an archived game.");
+          return;
+        }
+
+        if (!confirm("Permanently delete this archived game? This cannot be undone.")) {
+          return;
+        }
+
+        try {
+          await firestore.collection("archive").doc(id).delete();
+          await loadArchive();
+        } catch (e) {
+          console.error("Archive delete failed", e);
+          alert("Could not delete the archived game.");
+        }
+      }
 
       function updateAuthUi() {
         const userEl = document.getElementById("authUser");
@@ -660,7 +706,7 @@
 
         tab = t;
 
-        ["Buy", "Cash", "Settle"].forEach((k) => {
+        ["Buy", "Cash", "Settle", "Archive"].forEach((k) => {
 
           document
 
@@ -676,13 +722,20 @@
 
                 (t === "cash" && k === "Cash") ||
 
-                (t === "settle" && k === "Settle"),
+                (t === "settle" && k === "Settle") ||
+                (t === "archive" && k === "Archive"),
 
             );
 
         });
 
-        render();
+        if (t === "archive") {
+          archiveLoaded = false;
+          render();
+          loadArchive();
+        } else {
+          render();
+        }
 
       }
 
@@ -1151,6 +1204,72 @@
 
       `;
 
+          }
+
+        } else if (tab === "archive") {
+
+          if (!archiveLoaded) {
+            main.innerHTML =
+              '<div class="card"><div class="empty">Loading archive...</div></div>';
+
+          } else if (!archivedGames.length) {
+            main.innerHTML =
+              '<div class="card"><div class="empty">No archived games yet.</div></div>';
+
+          } else {
+            main.innerHTML = archivedGames.map((game) => {
+              const gamePlayers = game.players || {};
+              const gameNames = Object.keys(gamePlayers);
+
+              const gameTotal = Object.values(gamePlayers).reduce(
+                (sum, player) => sum + totalBuyIn(player),
+                0,
+              );
+
+              const gameDate =
+                game.archivedAt && game.archivedAt.toDate
+                  ? game.archivedAt.toDate().toLocaleString()
+                  : "Unknown date";
+
+              return `<div class="card">
+                <p class="section-title">${esc(gameDate)}</p>
+
+                <div class="row">
+                  <span class="pname">
+                    ${gameNames.length} player${gameNames.length !== 1 ? "s" : ""}
+                  </span>
+                  <span class="amt">${gameTotal.toFixed(0)} kr total</span>
+                </div>
+
+                ${gameNames
+                  .map((name) => {
+                    const player = gamePlayers[name];
+
+                    const cashout =
+                      player.cashout === null ||
+                      player.cashout === undefined
+                        ? "Not entered"
+                        : Number(player.cashout).toFixed(0) + " kr";
+
+                    return `<div class="row">
+                      <div>
+                        <div class="pname">${esc(name)}</div>
+                        <div class="psub">
+                          Buy-in ${totalBuyIn(player).toFixed(0)} kr - Cashout ${cashout}
+                        </div>
+                      </div>
+                    </div>`;
+                  })
+                  .join("")}
+
+                <button
+                  class="secondary"
+                  onclick="deleteArchivedGame('${escJs(game.id)}')"
+                >
+                  Delete permanently
+                </button>
+              </div>`;
+            }).join("");
           }
 
         }
