@@ -629,6 +629,61 @@
         render();
       }
 
+      function calcArchivedSettlement(players) {
+        const balances = Object.entries(players || {})
+          .map(([name, player]) => ({
+            name,
+            balance:
+              Number(player.cashout || 0) - totalBuyIn(player)
+          }))
+          .filter((player) => Math.abs(player.balance) > 0.01);
+
+        const debtors = balances
+          .filter((player) => player.balance < 0)
+          .map((player) => ({
+            name: player.name,
+            amount: -player.balance
+          }));
+
+        const creditors = balances
+          .filter((player) => player.balance > 0)
+          .map((player) => ({
+            name: player.name,
+            amount: player.balance
+          }));
+
+        const payments = [];
+
+        let debtorIndex = 0;
+        let creditorIndex = 0;
+
+        while (
+          debtorIndex < debtors.length &&
+          creditorIndex < creditors.length
+        ) {
+          const debtor = debtors[debtorIndex];
+          const creditor = creditors[creditorIndex];
+
+          const amount = Math.min(debtor.amount, creditor.amount);
+
+          if (amount > 0.01) {
+            payments.push({
+              from: debtor.name,
+              to: creditor.name,
+              amount
+            });
+          }
+
+          debtor.amount -= amount;
+          creditor.amount -= amount;
+
+          if (debtor.amount <= 0.01) debtorIndex++;
+          if (creditor.amount <= 0.01) creditorIndex++;
+        }
+
+        return payments;
+      }
+
       async function deleteArchivedGame(id) {
         if (!auth.currentUser) {
           alert("Sign in with Google to delete an archived game.");
@@ -1231,6 +1286,8 @@
                   ? game.archivedAt.toDate().toLocaleString()
                   : "Unknown date";
 
+              const payments = calcArchivedSettlement(gamePlayers);
+
               return `<div class="card">
                 <p class="section-title">${esc(gameDate)}</p>
 
@@ -1261,6 +1318,25 @@
                     </div>`;
                   })
                   .join("")}
+
+                <p class="section-title">Payments</p>
+
+                ${
+                  payments.length
+                    ? payments
+                        .map(
+                          (payment) => `<div class="row">
+                            <span>
+                              <strong>${esc(payment.from)}</strong>
+                              pays
+                              <strong>${esc(payment.to)}</strong>
+                            </span>
+                            <span class="amt">${payment.amount.toFixed(0)} kr</span>
+                          </div>`,
+                        )
+                        .join("")
+                    : '<div class="empty">No payments needed.</div>'
+                }
 
                 <button
                   class="secondary"
