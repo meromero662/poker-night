@@ -578,13 +578,13 @@
 
     <script>
       const firebaseConfig = {
-        apiKey: "AIzaSyC7dL55XgkF0QXdRtJaRNjIda8F7EyesSU",
+        apiKey: "AIzaSyC7dL55XgkFQ0XdRtJaRNiTda8F7FvesSU",
         authDomain: "poker-night-22bd4.firebaseapp.com",
         projectId: "poker-night-22bd4",
         storageBucket: "poker-night-22bd4.firebasestorage.app",
         messagingSenderId: "936670676256",
         appId: "1:936670676256:web:bec1d7838795d02da68345",
-        measurementId: "G-08GFY5SQ7E"
+        measurementId: "G-Q8GFY5SQ7E"
       };
       firebase.initializeApp(firebaseConfig);
       const firestore = firebase.firestore();
@@ -710,11 +710,15 @@
 
       function addBuyIn() {
 
-        const name = document.getElementById("nameInput").value.trim();
+        const enteredName = document.getElementById("nameInput").value.trim();
+
+        const existingName = Object.keys(state.players).find((n) => n.toLowerCase() === enteredName.toLowerCase());
+
+        const name = existingName || enteredName;
 
         const amount = parseFloat(document.getElementById("amountInput").value);
 
-        if (!name || !amount || amount <= 0) return;
+        if (!enteredName || !amount || amount <= 0) return;
 
         if (!state.players[name])
 
@@ -1112,7 +1116,7 @@
 
           <p class="section-title">Payments</p>
 
-          ${r.txs.length ? r.txs.map((t) => `<div class="tx"><span class="pname">${esc(t.from)}</span><span class="arrow">→</span><span class="pname">${esc(t.to)}</span><span class="amt" style="margin-left:auto">${t.amt.toFixed(0)} kr</span></div>`).join("") : '<div class="empty">Everyone\\'s even — no payments needed.</div>'}
+          ${r.txs.length ? r.txs.map((t) => `<div class="tx"><span class="pname">${esc(t.from)}</span><span class="arrow">→</span><span class="pname">${esc(t.to)}</span><span class="amt" style="margin-left:auto">${t.amt.toFixed(0)} kr</span></div>`).join("") : '<div class="empty">Everyone\'s even — no payments needed.</div>'}
 
         </div>
 
