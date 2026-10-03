@@ -1,0 +1,1175 @@
+<!doctype html>
+
+<html lang="en">
+
+  <head>
+
+    <meta charset="UTF-8" />
+
+    <meta
+
+      name="viewport"
+
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+
+    />
+
+    <title>Poker Night</title>
+
+    <style>
+
+      :root {
+
+        --felt: #0f3d2e;
+
+        --felt-dark: #0a2a1f;
+
+        --card: #12241c;
+
+        --cream: #f5f1e6;
+
+        --gold: #c9a227;
+
+        --red: #b24444;
+
+        --muted: #8fae9e;
+
+        --bg: var(--felt);
+
+        --fg: var(--cream);
+
+        --card-bg: var(--card);
+
+        --border: rgba(245, 241, 230, 0.14);
+
+        box-sizing: border-box;
+
+        padding-top: env(safe-area-inset-top, 0px);
+
+        padding-bottom: env(safe-area-inset-bottom, 0px);
+
+      }
+
+      @media (prefers-color-scheme: light) {
+
+        :root:not([data-theme="dark"]) {
+
+          --bg: #0f3d2e;
+
+          --fg: #f5f1e6;
+
+          --card-bg: #12241c;
+
+        }
+
+      }
+
+      html {
+
+        scroll-padding-top: env(safe-area-inset-top, 0px);
+
+      }
+
+      * {
+
+        box-sizing: border-box;
+
+      }
+
+      body {
+
+        margin: 0;
+
+        background: var(--bg);
+
+        color: var(--fg);
+
+        font-family:
+
+          -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+
+        height: 100%;
+
+        min-height: 100vh;
+
+        display: flex;
+
+        flex-direction: column;
+
+      }
+
+      .mono {
+
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+      }
+
+      header {
+
+        padding: 20px 20px 14px;
+
+        text-align: center;
+
+        border-bottom: 1px solid var(--border);
+
+      }
+
+      header h1 {
+
+        margin: 0;
+
+        font-size: 1.3rem;
+
+        font-weight: 700;
+
+        letter-spacing: 0.01em;
+
+      }
+
+      .pot {
+
+        margin-top: 8px;
+
+        font-size: 2.2rem;
+
+        font-weight: 700;
+
+        color: var(--gold);
+
+      }
+
+      .pot-label {
+
+        font-size: 0.78rem;
+
+        color: var(--muted);
+
+      }
+
+      main {
+
+        flex: 1;
+
+        overflow-y: auto;
+
+        padding: 16px 16px 90px;
+
+        max-width: 480px;
+
+        margin: 0 auto;
+
+        width: 100%;
+
+      }
+
+      .card {
+
+        background: var(--card-bg);
+
+        border: 1px solid var(--border);
+
+        border-radius: 14px;
+
+        padding: 16px;
+
+        margin-bottom: 14px;
+
+      }
+
+      .row {
+
+        display: flex;
+
+        justify-content: space-between;
+
+        align-items: center;
+
+        padding: 10px 0;
+
+        border-bottom: 1px solid var(--border);
+
+      }
+
+      .row:last-child {
+
+        border-bottom: none;
+
+      }
+
+      .pname {
+
+        font-weight: 600;
+
+      }
+
+      .psub {
+
+        font-size: 0.78rem;
+
+        color: var(--muted);
+
+      }
+
+      input,
+
+      select {
+
+        width: 100%;
+
+        padding: 12px;
+
+        border-radius: 10px;
+
+        border: 1px solid var(--border);
+
+        background: var(--felt-dark);
+
+        color: var(--fg);
+
+        font-size: 1rem;
+
+        margin-bottom: 10px;
+
+      }
+
+      input::placeholder {
+
+        color: var(--muted);
+
+      }
+
+      button {
+
+        width: 100%;
+
+        padding: 13px;
+
+        border-radius: 10px;
+
+        border: none;
+
+        background: var(--gold);
+
+        color: var(--felt-dark);
+
+        font-weight: 700;
+
+        font-size: 0.98rem;
+
+        cursor: pointer;
+
+      }
+
+      button.secondary {
+
+        background: transparent;
+
+        border: 1px solid var(--border);
+
+        color: var(--fg);
+
+        font-weight: 500;
+
+      }
+
+      button.small {
+
+        width: auto;
+
+        padding: 6px 12px;
+
+        font-size: 0.82rem;
+
+      }
+
+      .amt {
+
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+        font-weight: 600;
+
+      }
+
+      .pos {
+
+        color: #8fd19e;
+
+      }
+
+      .neg {
+
+        color: #e08787;
+
+      }
+
+      .empty {
+
+        color: var(--muted);
+
+        text-align: center;
+
+        padding: 20px 0;
+
+        font-size: 0.9rem;
+
+      }
+
+      .prow {
+
+        cursor: pointer;
+
+      }
+
+      .chev {
+
+        color: var(--muted);
+
+        font-size: 0.8rem;
+
+        margin-left: 8px;
+
+        transition: transform 0.15s;
+
+      }
+
+      .prow.open .chev {
+
+        transform: rotate(90deg);
+
+      }
+
+      .buyins {
+
+        padding: 2px 0 10px;
+
+      }
+
+      .brow {
+
+        display: flex;
+
+        align-items: center;
+
+        gap: 10px;
+
+        padding: 7px 0;
+
+        font-size: 0.86rem;
+
+      }
+
+      .brow .btime {
+
+        color: var(--muted);
+
+        flex: 1;
+
+      }
+
+      .brow .bamt {
+
+        width: 70px;
+
+      }
+
+      .brow .bamt input {
+
+        margin: 0;
+
+        padding: 6px 8px;
+
+        font-size: 0.86rem;
+
+      }
+
+      .iconbtn {
+
+        background: none;
+
+        border: none;
+
+        width: auto;
+
+        padding: 4px 6px;
+
+        font-size: 0.95rem;
+
+        cursor: pointer;
+
+        color: var(--muted);
+
+      }
+
+      .iconbtn:hover {
+
+        color: var(--fg);
+
+      }
+
+      .iconbtn.danger:hover {
+
+        color: var(--red);
+
+      }
+
+      .pdelete {
+
+        background: none;
+
+        border: none;
+
+        width: auto;
+
+        color: var(--muted);
+
+        font-size: 1rem;
+
+        padding: 4px 6px;
+
+      }
+
+      nav {
+
+        position: fixed;
+
+        bottom: 0;
+
+        left: 0;
+
+        right: 0;
+
+        display: flex;
+
+        background: var(--card-bg);
+
+        border-top: 1px solid var(--border);
+
+        padding-bottom: env(safe-area-inset-bottom, 0px);
+
+      }
+
+      nav button {
+
+        flex: 1;
+
+        background: none;
+
+        border: none;
+
+        color: var(--muted);
+
+        padding: 12px 0 10px;
+
+        border-radius: 0;
+
+        font-weight: 600;
+
+        font-size: 0.85rem;
+
+      }
+
+      nav button.active {
+
+        color: var(--gold);
+
+        border-top: 2px solid var(--gold);
+
+        padding-top: 10px;
+
+      }
+
+      .tx {
+
+        display: flex;
+
+        align-items: center;
+
+        gap: 8px;
+
+        padding: 10px 0;
+
+        border-bottom: 1px solid var(--border);
+
+      }
+
+      .tx:last-child {
+
+        border-bottom: none;
+
+      }
+
+      .arrow {
+
+        color: var(--gold);
+
+      }
+
+      .section-title {
+
+        font-size: 0.78rem;
+
+        text-transform: none;
+
+        color: var(--muted);
+
+        margin: 0 0 8px;
+
+      }
+
+      .status {
+
+        font-size: 0.82rem;
+
+        color: var(--muted);
+
+        text-align: center;
+
+        margin-top: -6px;
+
+        margin-bottom: 12px;
+
+      }
+
+
+      .authbar { margin-top: 10px; display:flex; justify-content:center; align-items:center; gap:8px; flex-wrap:wrap; }
+      .authbar button { padding:7px 12px; font-size:.78rem; width:auto; }
+      .auth-user { color:var(--muted); font-size:.76rem; max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    </style>
+
+  </head>
+
+  <body>
+
+    <header>
+
+      <h1>Poker Night</h1>
+
+      <div class="pot" id="potTotal">0 kr</div>
+
+      <div class="pot-label">total in play</div>
+      <div class="authbar">
+        <span class="auth-user" id="authUser">View only</span>
+        <button id="authButton" class="secondary" type="button" onclick="toggleSignIn()">Sign in to edit</button>
+      </div>
+
+    </header>
+
+    <main id="main"></main>
+
+    <nav>
+
+      <button id="tabBuy" class="active" onclick="setTab('buy')">
+
+        Buy-ins
+
+      </button>
+
+      <button id="tabCash" onclick="setTab('cash')">Cashout</button>
+
+      <button id="tabSettle" onclick="setTab('settle')">Settle</button>
+
+    </nav>
+
+
+
+    <script src="https://www.gstatic.com/firebasejs/12.19.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/12.19.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore-compat.js"></script>
+
+    <script>
+      const firebaseConfig = {
+        apiKey: "AIzaSyC7dL55XgkF0QXdRtJaRNjIda8F7EyesSU",
+        authDomain: "poker-night-22bd4.firebaseapp.com",
+        projectId: "poker-night-22bd4",
+        storageBucket: "poker-night-22bd4.firebasestorage.app",
+        messagingSenderId: "936670676256",
+        appId: "1:936670676256:web:bec1d7838795d02da68345",
+        measurementId: "G-08GFY5SQ7E"
+      };
+      firebase.initializeApp(firebaseConfig);
+      const firestore = firebase.firestore();
+      const auth = firebase.auth();
+      const provider = new firebase.auth.GoogleAuthProvider();
+
+      let state = { players: {} };
+
+      let tab = "buy";
+
+      let expanded = {};
+
+      let editing = null; // "name|idx" of buy-in currently being edited
+
+      let dbDoc = firestore.doc("session/main");
+      let currentUser = null;
+
+      function updateAuthUi() {
+        const userEl = document.getElementById("authUser");
+        const btn = document.getElementById("authButton");
+        if (!userEl || !btn) return;
+        if (currentUser) {
+          userEl.textContent = currentUser.email || currentUser.displayName || "Signed in";
+          btn.textContent = "Sign out";
+        } else {
+          userEl.textContent = "View only";
+          btn.textContent = "Sign in to edit";
+        }
+      }
+
+      async function toggleSignIn() {
+        try {
+          if (auth.currentUser) await auth.signOut();
+          else await auth.signInWithPopup(provider);
+        } catch (e) {
+          console.error(e);
+          alert("Sign-in failed: " + (e.message || e));
+        }
+      }
+
+      async function initStorage() {
+        auth.onAuthStateChanged((user) => {
+          currentUser = user;
+          updateAuthUi();
+        });
+        dbDoc.onSnapshot(
+          (snap) => {
+            state = snap.exists ? snap.data() : { players: {} };
+            if (!state || !state.players) state = { players: {} };
+            render();
+          },
+          (e) => {
+            console.error("Firestore read failed", e);
+            alert("Could not load the shared Poker Night data.");
+          }
+        );
+      }
+
+      async function saveState() {
+        if (!auth.currentUser) {
+          alert("Sign in with Google to edit the Poker Night.");
+          return;
+        }
+        try {
+          await dbDoc.set(state);
+        } catch (e) {
+          console.error("Firestore write failed", e);
+          alert("Could not save. Make sure you are signed in and have write access.");
+        }
+      }
+
+      function setTab(t) {
+
+        tab = t;
+
+        ["Buy", "Cash", "Settle"].forEach((k) => {
+
+          document
+
+            .getElementById("tab" + k)
+
+            .classList.toggle(
+
+              "active",
+
+              k.toLowerCase().startsWith(t.slice(0, 4)) ||
+
+                (t === "buy" && k === "Buy") ||
+
+                (t === "cash" && k === "Cash") ||
+
+                (t === "settle" && k === "Settle"),
+
+            );
+
+        });
+
+        render();
+
+      }
+
+
+
+      function totalBuyIn(p) {
+
+        return (p.buyIns || []).reduce((s, b) => s + b.amount, 0);
+
+      }
+
+      function potTotal() {
+
+        return Object.values(state.players).reduce(
+
+          (s, p) => s + totalBuyIn(p),
+
+          0,
+
+        );
+
+      }
+
+
+
+      function addBuyIn() {
+
+        const name = document.getElementById("nameInput").value.trim();
+
+        const amount = parseFloat(document.getElementById("amountInput").value);
+
+        if (!name || !amount || amount <= 0) return;
+
+        if (!state.players[name])
+
+          state.players[name] = { buyIns: [], cashout: null };
+
+        state.players[name].buyIns.push({
+
+          amount,
+
+          time: new Date().toLocaleTimeString([], {
+
+            hour: "2-digit",
+
+            minute: "2-digit",
+
+          }),
+
+        });
+
+        document.getElementById("amountInput").value = "";
+
+        saveState();
+
+      }
+
+
+
+      function setCashout(name, val) {
+
+        const amount = parseFloat(val);
+
+        state.players[name].cashout = isNaN(amount) ? null : amount;
+
+        saveState();
+
+      }
+
+
+
+      function toggleExpand(name) {
+
+        expanded[name] = !expanded[name];
+
+        editing = null;
+
+        render();
+
+      }
+
+
+
+      function startEdit(name, idx) {
+
+        editing = name + "|" + idx;
+
+        render();
+
+      }
+
+
+
+      function saveEdit(name, idx, val) {
+
+        const amount = parseFloat(val);
+
+        if (amount && amount > 0) {
+
+          state.players[name].buyIns[idx].amount = amount;
+
+        }
+
+        editing = null;
+
+        saveState();
+
+      }
+
+
+
+      function deleteBuyIn(name, idx) {
+
+        if (!confirm("Delete this buy-in?")) return;
+
+        state.players[name].buyIns.splice(idx, 1);
+
+        if (
+
+          state.players[name].buyIns.length === 0 &&
+
+          (state.players[name].cashout === null ||
+
+            state.players[name].cashout === undefined)
+
+        ) {
+
+          delete state.players[name];
+
+        }
+
+        saveState();
+
+      }
+
+
+
+      function deletePlayer(name) {
+
+        if (!confirm(`Remove ${name} and all their buy-ins?`)) return;
+
+        delete state.players[name];
+
+        saveState();
+
+      }
+
+
+
+      function resetSession() {
+
+        if (!confirm("Clear all data for a new poker night?")) return;
+
+        state = { players: {} };
+
+        saveState();
+
+      }
+
+
+
+      function calcSettlement() {
+
+        const names = Object.keys(state.players);
+
+        const missing = names.filter(
+
+          (n) =>
+
+            state.players[n].cashout === null ||
+
+            state.players[n].cashout === undefined,
+
+        );
+
+        if (missing.length)
+
+          return { error: "Waiting on cashout from: " + missing.join(", ") };
+
+        const balances = names.map((n) => ({
+
+          name: n,
+
+          net: round2(state.players[n].cashout - totalBuyIn(state.players[n])),
+
+        }));
+
+        const totalIn = round2(
+
+          names.reduce((s, n) => s + totalBuyIn(state.players[n]), 0),
+
+        );
+
+        const totalOut = round2(
+
+          names.reduce((s, n) => s + state.players[n].cashout, 0),
+
+        );
+
+        let warning = null;
+
+        if (Math.abs(totalIn - totalOut) > 0.01)
+
+          warning = `Buy-ins (${totalIn} kr) and cashouts (${totalOut} kr) don't match — check the numbers.`;
+
+        let debtors = balances
+
+          .filter((b) => b.net < -0.01)
+
+          .map((b) => ({ name: b.name, amt: -b.net }))
+
+          .sort((a, b) => b.amt - a.amt);
+
+        let creditors = balances
+
+          .filter((b) => b.net > 0.01)
+
+          .map((b) => ({ name: b.name, amt: b.net }))
+
+          .sort((a, b) => b.amt - a.amt);
+
+        const txs = [];
+
+        let i = 0,
+
+          j = 0;
+
+        while (i < debtors.length && j < creditors.length) {
+
+          const pay = round2(Math.min(debtors[i].amt, creditors[j].amt));
+
+          if (pay > 0.01)
+
+            txs.push({
+
+              from: debtors[i].name,
+
+              to: creditors[j].name,
+
+              amt: pay,
+
+            });
+
+          debtors[i].amt -= pay;
+
+          creditors[j].amt -= pay;
+
+          if (debtors[i].amt <= 0.01) i++;
+
+          if (creditors[j].amt <= 0.01) j++;
+
+        }
+
+        return { txs, balances, warning };
+
+      }
+
+      function round2(n) {
+
+        return Math.round(n * 100) / 100;
+
+      }
+
+
+
+      function render() {
+
+        document.getElementById("potTotal").textContent =
+
+          potTotal().toFixed(0) + " kr";
+
+        const main = document.getElementById("main");
+
+        const names = Object.keys(state.players);
+
+
+
+        if (tab === "buy") {
+
+          main.innerHTML = `
+
+      <div class="card">
+
+        <p class="section-title">Log a buy-in</p>
+
+        <input id="nameInput" placeholder="Player name" list="playerList">
+
+        <datalist id="playerList">${names.map((n) => `<option value="${esc(n)}">`).join("")}</datalist>
+
+        <input id="amountInput" type="number" inputmode="decimal" placeholder="Amount (kr)">
+
+        <button onclick="addBuyIn()">Add buy-in</button>
+
+      </div>
+
+      <div class="card">
+
+        <p class="section-title">Players (tap to view buy-ins)</p>
+
+        ${
+
+          names.length
+
+            ? names
+
+                .map((n) => {
+
+                  const p = state.players[n];
+
+                  const isOpen = !!expanded[n];
+
+                  const buyinsHtml = p.buyIns
+
+                    .map((b, idx) => {
+
+                      const isEditing = editing === n + "|" + idx;
+
+                      return `<div class="brow">
+
+              <span class="btime">${esc(b.time || "")}</span>
+
+              ${
+
+                isEditing
+
+                  ? `<span class="bamt"><input type="number" inputmode="decimal" value="${b.amount}" autofocus onblur="saveEdit('${escJs(n)}',${idx},this.value)" onkeydown="if(event.key==='Enter')this.blur()"></span>`
+
+                  : `<span class="amt">${b.amount.toFixed(0)} kr</span>
+
+                   <button class="iconbtn" onclick="event.stopPropagation();startEdit('${escJs(n)}',${idx})">✎</button>
+
+                   <button class="iconbtn danger" onclick="event.stopPropagation();deleteBuyIn('${escJs(n)}',${idx})">✕</button>`
+
+              }
+
+            </div>`;
+
+                    })
+
+                    .join("");
+
+                  return `<div class="row prow ${isOpen ? "open" : ""}" onclick="toggleExpand('${escJs(n)}')">
+
+            <div><div class="pname">${esc(n)}<span class="chev">▸</span></div><div class="psub">${p.buyIns.length} buy-in${p.buyIns.length !== 1 ? "s" : ""}</div></div>
+
+            <div style="display:flex;align-items:center;">
+
+              <span class="amt">${totalBuyIn(p).toFixed(0)} kr</span>
+
+              <button class="pdelete" onclick="event.stopPropagation();deletePlayer('${escJs(n)}')">✕</button>
+
+            </div>
+
+          </div>
+
+          ${isOpen ? `<div class="buyins">${buyinsHtml}</div>` : ""}`;
+
+                })
+
+                .join("")
+
+            : '<div class="empty">No buy-ins yet — add the first one above.</div>'
+
+        }
+
+      </div>
+
+      <button class="secondary" onclick="resetSession()">Reset session</button>
+
+    `;
+
+        } else if (tab === "cash") {
+
+          main.innerHTML = `
+
+      <div class="card">
+
+        <p class="section-title">Final chip count per player</p>
+
+        ${
+
+          names.length
+
+            ? names
+
+                .map((n) => {
+
+                  const p = state.players[n];
+
+                  return `<div class="row"><div><div class="pname">${esc(n)}</div><div class="psub">bought in ${totalBuyIn(p).toFixed(0)} kr</div></div>
+
+          <input style="width:100px;margin:0" type="number" inputmode="decimal" placeholder="kr" value="${p.cashout ?? ""}" onchange="setCashout('${escJs(n)}', this.value)"></div>`;
+
+                })
+
+                .join("")
+
+            : '<div class="empty">Add players on the Buy-ins tab first.</div>'
+
+        }
+
+      </div>
+
+    `;
+
+        } else if (tab === "settle") {
+
+          const r = calcSettlement();
+
+          if (!names.length) {
+
+            main.innerHTML =
+
+              '<div class="card"><div class="empty">Add players and buy-ins first.</div></div>';
+
+          } else if (r.error) {
+
+            main.innerHTML = `<div class="card"><div class="empty">${esc(r.error)}</div></div>`;
+
+          } else {
+
+            main.innerHTML = `
+
+        ${r.warning ? `<div class="status">${esc(r.warning)}</div>` : ""}
+
+        <div class="card">
+
+          <p class="section-title">Payments</p>
+
+          ${r.txs.length ? r.txs.map((t) => `<div class="tx"><span class="pname">${esc(t.from)}</span><span class="arrow">→</span><span class="pname">${esc(t.to)}</span><span class="amt" style="margin-left:auto">${t.amt.toFixed(0)} kr</span></div>`).join("") : '<div class="empty">Everyone\\'s even — no payments needed.</div>'}
+
+        </div>
+
+        <div class="card">
+
+          <p class="section-title">Net result</p>
+
+          ${r.balances.map((b) => `<div class="row"><span class="pname">${esc(b.name)}</span><span class="amt ${b.net >= 0 ? "pos" : "neg"}">${b.net >= 0 ? "+" : ""}${b.net.toFixed(0)} kr</span></div>`).join("")}
+
+        </div>
+
+      `;
+
+          }
+
+        }
+
+      }
+
+      function esc(s) {
+
+        return String(s).replace(
+
+          /[&<>"']/g,
+
+          (c) =>
+
+            ({
+
+              "&": "&amp;",
+
+              "<": "&lt;",
+
+              ">": "&gt;",
+
+              '"': "&quot;",
+
+              "'": "&#39;",
+
+            })[c],
+
+        );
+
+      }
+
+      function escJs(s) {
+
+        return String(s).replace(/'/g, "\\\\'");
+
+      }
+
+
+
+      initStorage();
+
+    </script>
+
+  </body>
+
+</html>
