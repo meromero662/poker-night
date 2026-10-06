@@ -718,8 +718,40 @@
 
       async function toggleSignIn() {
         try {
-          if (auth.currentUser) await auth.signOut();
-          else await auth.signInWithPopup(provider);
+          const isNative =
+            window.Capacitor &&
+            window.Capacitor.isNativePlatform &&
+            window.Capacitor.isNativePlatform();
+
+          if (auth.currentUser) {
+            await auth.signOut();
+
+            if (isNative && window.Capacitor.Plugins.FirebaseAuthentication) {
+              await window.Capacitor.Plugins.FirebaseAuthentication.signOut();
+            }
+
+            return;
+          }
+
+          if (isNative && window.Capacitor.Plugins.FirebaseAuthentication) {
+            const result =
+              await window.Capacitor.Plugins.FirebaseAuthentication.signInWithGoogle({
+                skipNativeAuth: true
+              });
+
+            if (!result.credential || !result.credential.idToken) {
+              throw new Error("Google Sign-In did not return an ID token.");
+            }
+
+            const credential = firebase.auth.GoogleAuthProvider.credential(
+              result.credential.idToken,
+              result.credential.accessToken || null
+            );
+
+            await auth.signInWithCredential(credential);
+          } else {
+            await auth.signInWithPopup(provider);
+          }
         } catch (e) {
           console.error(e);
           alert("Sign-in failed: " + (e.message || e));

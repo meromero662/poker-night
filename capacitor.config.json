@@ -1,5 +1,13 @@
 {
   "appId": "com.mero.pokernight",
   "appName": "Poker Night",
-  "webDir": "www"
+  "webDir": "www",
+  "plugins": {
+    "FirebaseAuthentication": {
+      "skipNativeAuth": true,
+      "providers": [
+        "google.com"
+      ]
+    }
+  }
 }
