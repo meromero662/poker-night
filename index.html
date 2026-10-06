@@ -744,8 +744,7 @@
             }
 
             const credential = firebase.auth.GoogleAuthProvider.credential(
-              result.credential.idToken,
-              result.credential.accessToken || null
+              result.credential.idToken
             );
 
             await auth.signInWithCredential(credential);
