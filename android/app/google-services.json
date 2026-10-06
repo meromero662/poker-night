@@ -14,6 +14,14 @@
       },
       "oauth_client": [
         {
+          "client_id": "936670676256-g8dhip2741s27f7iua140qpofhn2kvgo.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.mero.pokernight",
+            "certificate_hash": "84f8ba09f704330b5a3feb1344f44a90fdeb1848"
+          }
+        },
+        {
           "client_id": "936670676256-lp0lhnbld5r6tkt683srv96s4cgkpfts.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
