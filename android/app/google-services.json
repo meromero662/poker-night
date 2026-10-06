@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "936670676256",
+    "project_id": "poker-night-22bd4",
+    "storage_bucket": "poker-night-22bd4.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:936670676256:android:8ba5fad9a771dc25a68345",
+        "android_client_info": {
+          "package_name": "com.mero.pokernight"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "936670676256-lp0lhnbld5r6tkt683srv96s4cgkpfts.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.mero.pokernight",
+            "certificate_hash": "e2cf6af05cf01cedd37f7fa91a83c9543426db7f"
+          }
+        },
+        {
+          "client_id": "936670676256-2nfeq96mekvc84g7jtq60s4ap4m7kuqa.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCxGwpqUmKZ9ViiAdO8plvDpvZT1aPwFo0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "936670676256-2nfeq96mekvc84g7jtq60s4ap4m7kuqa.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
