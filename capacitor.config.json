@@ -1,6 +1,6 @@
 {
   "appId": "com.mero.pokernight",
-  "appName": "Poker Night",
+  "appName": "PotSplit",
   "webDir": "www",
   "plugins": {
     "FirebaseAuthentication": {

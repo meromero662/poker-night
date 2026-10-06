@@ -14,7 +14,7 @@
 
     />
 
-    <title>Poker Night</title>
+    <title>PotSplit</title>
 
     <style>
 
@@ -542,7 +542,7 @@
 
     <header>
 
-      <h1>Poker Night</h1>
+      <h1>PotSplit</h1>
 
       <div class="pot" id="potTotal">0 kr</div>
 
@@ -770,14 +770,14 @@
           },
           (e) => {
             console.error("Firestore read failed", e);
-            alert("Could not load the shared Poker Night data.");
+            alert("Could not load the shared PotSplit data.");
           }
         );
       }
 
       async function saveState() {
         if (!auth.currentUser) {
-          alert("Sign in with Google to edit the Poker Night.");
+          alert("Sign in with Google to edit the PotSplit.");
           return;
         }
         try {
@@ -977,10 +977,10 @@
 
       async function resetSession() {
 
-        if (!confirm("Archive this game and start a new poker night?")) return;
+        if (!confirm("Archive this game and start a new PotSplit?")) return;
 
         if (!auth.currentUser) {
-          alert("Sign in with Google to archive and reset the Poker Night.");
+          alert("Sign in with Google to archive and reset the PotSplit.");
           return;
         }
 
