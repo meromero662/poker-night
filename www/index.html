@@ -1009,15 +1009,28 @@
 
           const memberRows = members.map((member) => {
             const isBank = member.userId === currentGroup.bankId;
+            const canRemove = isCurrentUserBank() && !isBank;
 
             return `
-              <div style="padding:12px 0;border-bottom:1px solid var(--border);">
-                <div style="font-weight:700;">
-                  ${esc(member.name || "Member")}
+              <div style="padding:12px 0;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:12px;">
+                <div>
+                  <div style="font-weight:700;">
+                    ${esc(member.name || "Member")}
+                  </div>
+                  <div style="margin-top:3px;color:var(--muted);font-size:.78rem;">
+                    ${isBank ? "Bank" : "Member"}
+                  </div>
                 </div>
-                <div style="margin-top:3px;color:var(--muted);font-size:.78rem;">
-                  ${isBank ? "Bank" : "Member"}
-                </div>
+
+                ${canRemove ? `
+                  <button
+                    class="reset-delete"
+                    style="width:auto;padding:8px 12px;min-height:auto;"
+                    onclick="removeGroupMember('${escJs(member.userId)}', '${escJs(member.name || "Member")}')"
+                  >
+                    Remove
+                  </button>
+                ` : ""}
               </div>
             `;
           }).join("");
@@ -1064,6 +1077,41 @@
         } catch (e) {
           console.error("Group members load failed", e);
           alert("Could not load poker group members.");
+        }
+      }
+
+      async function removeGroupMember(userId, memberName) {
+        if (!currentUser || !currentGroupId || !isCurrentUserBank()) {
+          alert("Only the Bank can remove group members.");
+          return;
+        }
+
+        if (userId === currentGroup.bankId) {
+          alert("The Bank cannot be removed from the group.");
+          return;
+        }
+
+        const confirmed = confirm(
+          `Remove ${memberName} from ${currentGroup.name}?`
+        );
+
+        if (!confirmed) return;
+
+        try {
+          const memberRef = getGroupMemberRef(currentGroupId, userId);
+
+          if (!memberRef) {
+            throw new Error("Member reference could not be created.");
+          }
+
+          await memberRef.delete();
+
+          closeGroupDetails();
+          await openGroupDetails();
+
+        } catch (e) {
+          console.error("Group member removal failed", e);
+          alert("Could not remove this member from the poker group.");
         }
       }
 
@@ -1239,6 +1287,7 @@
 
           closeJoinGroupModal();
           await loadCurrentGroup();
+          render();
 
         } catch (e) {
           console.error("Group join failed", e);
@@ -1388,6 +1437,12 @@
           updateGroupUi();
         } catch (e) {
           console.error("Group load failed", e);
+
+          currentGroupId = null;
+          currentGroup = null;
+          currentMember = null;
+
+          updateGroupUi();
         }
       }
 
