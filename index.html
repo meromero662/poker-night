@@ -669,9 +669,25 @@
       let currentUser = null;
       let unsubscribeSession = null;
 
+      // Multiplayer group state
+      let currentGroupId = null;
+      let currentGroup = null;
+      let currentMember = null;
+
       function getUserRoot() {
         if (!currentUser) return null;
         return firestore.collection("users").doc(currentUser.uid);
+      }
+
+      function getGroupRef(groupId = currentGroupId) {
+        if (!groupId) return null;
+        return firestore.collection("groups").doc(groupId);
+      }
+
+      function getGroupMemberRef(groupId = currentGroupId, userId = currentUser?.uid) {
+        const groupRef = getGroupRef(groupId);
+        if (!groupRef || !userId) return null;
+        return groupRef.collection("members").doc(userId);
       }
 
       function getUserArchive() {
