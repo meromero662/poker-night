@@ -674,6 +674,9 @@
         <button id="createGroupButton" class="secondary" type="button" onclick="createGroup()">
           Create Group
         </button>
+        <button id="joinGroupButton" class="secondary" type="button" onclick="joinGroup()">
+          Join Group
+        </button>
       </div>
 
     </header>
@@ -997,6 +1000,121 @@
         if (modal) modal.remove();
       }
 
+      function joinGroup() {
+        if (!currentUser) {
+          alert("Sign in with Google before joining a poker group.");
+          return;
+        }
+
+        const existing = document.getElementById("joinGroupModal");
+        if (existing) existing.remove();
+
+        const overlay = document.createElement("div");
+        overlay.id = "joinGroupModal";
+        overlay.className = "reset-modal-overlay";
+
+        overlay.innerHTML = `
+          <div class="reset-modal" role="dialog" aria-modal="true" aria-labelledby="joinGroupModalTitle">
+            <h2 id="joinGroupModalTitle">Join Poker Group</h2>
+
+            <p class="reset-modal-text">
+              Enter the 6-character group code shared by the Bank.
+            </p>
+
+            <div class="group-name-field">
+              <label for="groupCodeInput">Group Code</label>
+              <input
+                id="groupCodeInput"
+                type="text"
+                maxlength="6"
+                placeholder="K7P4Q9"
+                autocomplete="off"
+              />
+            </div>
+
+            <div class="reset-modal-actions">
+              <button class="reset-archive" onclick="submitJoinGroup()">
+                Join Group
+              </button>
+
+              <button class="reset-cancel" onclick="closeJoinGroupModal()">
+                Cancel
+              </button>
+            </div>
+          </div>
+        `;
+
+        overlay.addEventListener("click", (event) => {
+          if (event.target === overlay) closeJoinGroupModal();
+        });
+
+        document.body.appendChild(overlay);
+
+        const input = document.getElementById("groupCodeInput");
+        if (input) input.focus();
+      }
+
+      function closeJoinGroupModal() {
+        const modal = document.getElementById("joinGroupModal");
+        if (modal) modal.remove();
+      }
+
+      async function submitJoinGroup() {
+        if (!currentUser) {
+          closeJoinGroupModal();
+          alert("Sign in with Google before joining a poker group.");
+          return;
+        }
+
+        const input = document.getElementById("groupCodeInput");
+        const groupCode = input ? input.value.trim().toUpperCase() : "";
+
+        if (groupCode.length !== 6) {
+          alert("Please enter a valid 6-character group code.");
+          return;
+        }
+
+        try {
+          const codeRef = firestore.collection("groupCodes").doc(groupCode);
+          const codeSnap = await codeRef.get();
+
+          if (!codeSnap.exists || !codeSnap.data().groupId) {
+            alert("Group code not found.");
+            return;
+          }
+
+          const groupId = codeSnap.data().groupId;
+          const memberRef = getGroupMemberRef(groupId, currentUser.uid);
+
+          await memberRef.set({
+            userId: currentUser.uid,
+            name: currentUser.displayName || currentUser.email || "Member",
+            role: "member",
+            groupCode: groupCode,
+            joinedAt: firebase.firestore.FieldValue.serverTimestamp()
+          });
+
+          const groupProfileRef = getUserGroupProfileRef();
+          await groupProfileRef.set({
+            groupId: groupId
+          });
+
+          currentGroupId = groupId;
+          currentMember = {
+            userId: currentUser.uid,
+            name: currentUser.displayName || currentUser.email || "Member",
+            role: "member"
+          };
+
+          closeJoinGroupModal();
+          await loadCurrentGroup();
+
+        } catch (e) {
+          console.error("Group join failed", e);
+          alert("Could not join the poker group.");
+        }
+      }
+
       async function submitCreateGroup() {
         if (!currentUser) {
           closeCreateGroupModal();
@@ -1137,6 +1255,15 @@
           archivedGames = [];
           archiveLoaded = false;
           dbDoc = null;
+
+          currentGroupId = null;
+          currentGroup = null;
+          currentMember = null;
+
+          const groupStatus = document.getElementById("groupStatus");
+          if (groupStatus) {
+            groupStatus.textContent = "No poker group selected";
+          }
 
           if (!currentUser) {
             archiveLoaded = true;
