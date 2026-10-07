@@ -977,36 +977,42 @@
 
       async function resetSession() {
 
-        if (!confirm("Archive this game and start a new PotSplit?")) return;
-
         if (!auth.currentUser) {
-          alert("Sign in with Google to archive and reset the PotSplit.");
+          alert("Sign in with Google to reset the PotSplit.");
           return;
         }
 
         if (Object.keys(state.players).length === 0) {
-          alert("There is no game to archive.");
+          alert("There is no active game to reset.");
           return;
         }
 
+        if (!confirm("Reset the current PotSplit session?")) return;
+
+        const archiveFirst = confirm(
+          "Do you want to archive this game before starting a new session?\n\n" +
+          "OK = Archive & Start New\n" +
+          "Cancel = Delete & Start New"
+        );
+
         try {
-          await firestore.collection("archive").add({
-            players: state.players,
-            archivedAt: firebase.firestore.FieldValue.serverTimestamp()
-          });
+          if (archiveFirst) {
+            await firestore.collection("archive").add({
+              players: state.players,
+              archivedAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
+          }
 
           state = { players: {} };
 
           await dbDoc.set(state);
 
         } catch (e) {
-          console.error("Archive/reset failed", e);
-          alert("Could not archive the game. The current session was not cleared.");
+          console.error("Reset failed", e);
+          alert("Could not reset the game. The current session was not cleared.");
         }
 
       }
-
-
 
       function calcSettlement() {
 
