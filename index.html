@@ -670,7 +670,7 @@
       </div>
 
       <div id="groupBar" class="group-bar">
-        <span id="groupStatus">No poker group selected</span>
+        <span id="groupStatus" onclick="openGroupDetails()" style="cursor:pointer;">No poker group selected</span>
         <button id="createGroupButton" class="secondary" type="button" onclick="createGroup()">
           Create Group
         </button>
@@ -970,6 +970,106 @@
           values,
           (value) => chars[value % chars.length]
         ).join("");
+      }
+
+      async function openGroupDetails() {
+        if (!currentUser || !currentGroupId || !currentGroup) {
+          alert("No poker group selected.");
+          return;
+        }
+
+        const existing = document.getElementById("groupDetailsModal");
+        if (existing) existing.remove();
+
+        try {
+          const membersSnap = await getGroupRef()
+            .collection("members")
+            .get();
+
+          const members = [
+            {
+              id: currentGroup.bankId,
+              userId: currentGroup.bankId,
+              name: currentGroup.bankName || "Bank",
+              role: "bank"
+            },
+            ...membersSnap.docs
+              .map((doc) => ({
+                id: doc.id,
+                ...doc.data()
+              }))
+              .filter((member) => member.userId !== currentGroup.bankId)
+          ];
+
+          members.sort((a, b) => {
+            if (a.userId === currentGroup.bankId) return -1;
+            if (b.userId === currentGroup.bankId) return 1;
+            return (a.name || "").localeCompare(b.name || "");
+          });
+
+          const memberRows = members.map((member) => {
+            const isBank = member.userId === currentGroup.bankId;
+
+            return `
+              <div style="padding:12px 0;border-bottom:1px solid var(--border);">
+                <div style="font-weight:700;">
+                  ${esc(member.name || "Member")}
+                </div>
+                <div style="margin-top:3px;color:var(--muted);font-size:.78rem;">
+                  ${isBank ? "Bank" : "Member"}
+                </div>
+              </div>
+            `;
+          }).join("");
+
+          const overlay = document.createElement("div");
+          overlay.id = "groupDetailsModal";
+          overlay.className = "reset-modal-overlay";
+
+          overlay.innerHTML = `
+            <div class="reset-modal" role="dialog" aria-modal="true" aria-labelledby="groupDetailsModalTitle">
+              <h2 id="groupDetailsModalTitle">${esc(currentGroup.name)}</h2>
+
+              <p class="reset-modal-text">
+                Bank: ${esc(currentGroup.bankName)}<br>
+                Group Code: <strong>${esc(currentGroup.groupCode)}</strong>
+              </p>
+
+              <div style="margin-bottom:22px;">
+                <div style="margin-bottom:6px;color:var(--gold);font-weight:700;">
+                  Members
+                </div>
+
+                ${memberRows || `
+                  <div style="color:var(--muted);font-size:.82rem;">
+                    No members found.
+                  </div>
+                `}
+              </div>
+
+              <div class="reset-modal-actions">
+                <button class="reset-cancel" onclick="closeGroupDetails()">
+                  Close
+                </button>
+              </div>
+            </div>
+          `;
+
+          overlay.addEventListener("click", (event) => {
+            if (event.target === overlay) closeGroupDetails();
+          });
+
+          document.body.appendChild(overlay);
+
+        } catch (e) {
+          console.error("Group members load failed", e);
+          alert("Could not load poker group members.");
+        }
+      }
+
+      function closeGroupDetails() {
+        const modal = document.getElementById("groupDetailsModal");
+        if (modal) modal.remove();
       }
 
       function createGroup() {
