@@ -272,6 +272,71 @@
 
       }
 
+      .reset-modal-overlay {
+        position: fixed;
+        inset: 0;
+        z-index: 1000;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 24px;
+        background: rgba(0, 0, 0, 0.72);
+        backdrop-filter: blur(4px);
+      }
+
+      .reset-modal {
+        width: 100%;
+        max-width: 420px;
+        padding: 24px;
+        border: 1px solid var(--border);
+        border-radius: 20px;
+        background: var(--felt-dark);
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
+      }
+
+      .reset-modal h2 {
+        margin: 0 0 8px;
+        color: var(--gold);
+        text-align: center;
+      }
+
+      .reset-modal-text {
+        margin: 0 0 22px;
+        color: var(--muted);
+        text-align: center;
+        line-height: 1.5;
+      }
+
+      .reset-modal-actions {
+        display: grid;
+        gap: 12px;
+      }
+
+      .reset-modal-actions button {
+        min-height: 52px;
+        border-radius: 14px;
+      }
+
+      .reset-archive {
+        background: var(--gold);
+        color: var(--felt-dark);
+        font-weight: 700;
+      }
+
+      .reset-delete {
+        background: transparent;
+        border: 1px solid #c65b5b;
+        color: #ff8a8a;
+        font-weight: 700;
+      }
+
+      .reset-cancel {
+        background: transparent;
+        border: 1px solid var(--border);
+        color: var(--fg);
+        font-weight: 500;
+      }
+
       button.small {
 
         width: auto;
@@ -987,29 +1052,95 @@
           return;
         }
 
-        if (!confirm("Reset the current PotSplit session?")) return;
+        showResetModal();
 
-        const archiveFirst = confirm(
-          "Do you want to archive this game before starting a new session?\n\n" +
-          "OK = Archive & Start New\n" +
-          "Cancel = Delete & Start New"
-        );
+      }
+
+      function showResetModal() {
+
+        const existing = document.getElementById("resetModal");
+        if (existing) existing.remove();
+
+        const overlay = document.createElement("div");
+        overlay.id = "resetModal";
+        overlay.className = "reset-modal-overlay";
+
+        overlay.innerHTML = `
+          <div class="reset-modal" role="dialog" aria-modal="true" aria-labelledby="resetModalTitle">
+            <h2 id="resetModalTitle">Start a new session?</h2>
+
+            <p class="reset-modal-text">
+              What would you like to do with the current game?
+            </p>
+
+            <div class="reset-modal-actions">
+              <button class="reset-archive" onclick="archiveAndResetSession()">
+                Archive &amp; Start New
+              </button>
+
+              <button class="reset-delete" onclick="confirmDeleteAndResetSession()">
+                Delete &amp; Start New
+              </button>
+
+              <button class="reset-cancel" onclick="closeResetModal()">
+                Cancel
+              </button>
+            </div>
+          </div>
+        `;
+
+        overlay.addEventListener("click", (event) => {
+          if (event.target === overlay) closeResetModal();
+        });
+
+        document.body.appendChild(overlay);
+
+      }
+
+      function closeResetModal() {
+
+        const modal = document.getElementById("resetModal");
+        if (modal) modal.remove();
+
+      }
+
+      async function archiveAndResetSession() {
 
         try {
-          if (archiveFirst) {
-            await firestore.collection("archive").add({
-              players: state.players,
-              archivedAt: firebase.firestore.FieldValue.serverTimestamp()
-            });
-          }
+          await firestore.collection("archive").add({
+            players: state.players,
+            archivedAt: firebase.firestore.FieldValue.serverTimestamp()
+          });
 
           state = { players: {} };
-
           await dbDoc.set(state);
 
+          closeResetModal();
+
         } catch (e) {
-          console.error("Reset failed", e);
-          alert("Could not reset the game. The current session was not cleared.");
+          console.error("Archive/reset failed", e);
+          alert("Could not archive the game. The current session was not cleared.");
+        }
+
+      }
+
+      async function confirmDeleteAndResetSession() {
+
+        const confirmed = confirm(
+          "Permanently delete this game without saving it to Archive?"
+        );
+
+        if (!confirmed) return;
+
+        try {
+          state = { players: {} };
+          await dbDoc.set(state);
+
+          closeResetModal();
+
+        } catch (e) {
+          console.error("Delete/reset failed", e);
+          alert("Could not delete the game. The current session was not cleared.");
         }
 
       }
