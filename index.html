@@ -743,6 +743,11 @@
         return firestore.collection("groups").doc(groupId);
       }
 
+      function getUserGroupProfileRef() {
+        const userRoot = getUserRoot();
+        return userRoot ? userRoot.collection("profile").doc("group") : null;
+      }
+
       function getGroupMemberRef(groupId = currentGroupId, userId = currentUser?.uid) {
         const groupRef = getGroupRef(groupId);
         if (!groupRef || !userId) return null;
@@ -1062,10 +1067,15 @@
             status: "active"
           };
 
+          const groupProfileRef = getUserGroupProfileRef();
+          await groupProfileRef.set({
+            groupId: currentGroupId
+          });
+
           const groupStatus = document.getElementById("groupStatus");
           if (groupStatus) {
             groupStatus.textContent =
-              `${currentGroup.name} ? Bank: ${currentGroup.bankName} ? Group Code: ${currentGroup.groupCode}`;
+              `${currentGroup.name} | Bank: ${currentGroup.bankName} | Group Code: ${currentGroup.groupCode}`;
           }
 
           closeCreateGroupModal();
@@ -1073,6 +1083,44 @@
         } catch (e) {
           console.error("Group creation failed", e);
           alert("Could not create the poker group.");
+        }
+      }
+
+      async function loadCurrentGroup() {
+        if (!currentUser) return;
+
+        try {
+          const groupProfileRef = getUserGroupProfileRef();
+          const profileSnap = await groupProfileRef.get();
+
+          if (!profileSnap.exists || !profileSnap.data().groupId) {
+            currentGroupId = null;
+            currentGroup = null;
+            return;
+          }
+
+          currentGroupId = profileSnap.data().groupId;
+
+          const groupSnap = await getGroupRef().get();
+
+          if (!groupSnap.exists) {
+            currentGroupId = null;
+            currentGroup = null;
+            return;
+          }
+
+          currentGroup = {
+            id: groupSnap.id,
+            ...groupSnap.data()
+          };
+
+          const groupStatus = document.getElementById("groupStatus");
+          if (groupStatus) {
+            groupStatus.textContent =
+              `${currentGroup.name} | Bank: ${currentGroup.bankName} | Group Code: ${currentGroup.groupCode}`;
+          }
+        } catch (e) {
+          console.error("Group load failed", e);
         }
       }
 
@@ -1120,6 +1168,7 @@
 
           updateAuthUi();
           loadArchive();
+          loadCurrentGroup();
         });
       }
 
