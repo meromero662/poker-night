@@ -1221,11 +1221,7 @@
             groupId: currentGroupId
           });
 
-          const groupStatus = document.getElementById("groupStatus");
-          if (groupStatus) {
-            groupStatus.textContent =
-              `${currentGroup.name} | Bank: ${currentGroup.bankName} | Group Code: ${currentGroup.groupCode}`;
-          }
+          updateGroupUi();
 
           closeCreateGroupModal();
 
@@ -1234,6 +1230,30 @@
           alert("Could not create the poker group.");
         }
       }
+
+      function updateGroupUi() {
+        const groupStatus = document.getElementById("groupStatus");
+        const createButton = document.getElementById("createGroupButton");
+        const joinButton = document.getElementById("joinGroupButton");
+
+        if (currentGroup) {
+          if (groupStatus) {
+            groupStatus.textContent =
+              `${currentGroup.name} | Bank: ${currentGroup.bankName} | Group Code: ${currentGroup.groupCode}`;
+          }
+
+          if (createButton) createButton.style.display = "none";
+          if (joinButton) joinButton.style.display = "none";
+        } else {
+          if (groupStatus) {
+            groupStatus.textContent = "No poker group selected";
+          }
+
+          if (createButton) createButton.style.display = "";
+          if (joinButton) joinButton.style.display = "";
+        }
+      }
+
 
       async function loadCurrentGroup() {
         if (!currentUser) return;
@@ -1245,6 +1265,7 @@
           if (!profileSnap.exists || !profileSnap.data().groupId) {
             currentGroupId = null;
             currentGroup = null;
+            updateGroupUi();
             return;
           }
 
@@ -1255,6 +1276,7 @@
           if (!groupSnap.exists) {
             currentGroupId = null;
             currentGroup = null;
+            updateGroupUi();
             return;
           }
 
@@ -1263,11 +1285,7 @@
             ...groupSnap.data()
           };
 
-          const groupStatus = document.getElementById("groupStatus");
-          if (groupStatus) {
-            groupStatus.textContent =
-              `${currentGroup.name} | Bank: ${currentGroup.bankName} | Group Code: ${currentGroup.groupCode}`;
-          }
+          updateGroupUi();
         } catch (e) {
           console.error("Group load failed", e);
         }
@@ -1291,10 +1309,7 @@
           currentGroup = null;
           currentMember = null;
 
-          const groupStatus = document.getElementById("groupStatus");
-          if (groupStatus) {
-            groupStatus.textContent = "No poker group selected";
-          }
+          updateGroupUi();
 
           if (!currentUser) {
             archiveLoaded = true;
