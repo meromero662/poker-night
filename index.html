@@ -1062,6 +1062,12 @@
             status: "active"
           };
 
+          const groupStatus = document.getElementById("groupStatus");
+          if (groupStatus) {
+            groupStatus.textContent =
+              `${currentGroup.name} ? Bank: ${currentGroup.bankName} ? Group Code: ${currentGroup.groupCode}`;
+          }
+
           closeCreateGroupModal();
 
         } catch (e) {
