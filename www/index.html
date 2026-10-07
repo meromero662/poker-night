@@ -665,16 +665,35 @@
 
       let editing = null; // "name|idx" of buy-in currently being edited
 
-      let dbDoc = firestore.doc("session/main");
+      let dbDoc = null;
       let currentUser = null;
+      let unsubscribeSession = null;
+
+      function getUserRoot() {
+        if (!currentUser) return null;
+        return firestore.collection("users").doc(currentUser.uid);
+      }
+
+      function getUserArchive() {
+        const userRoot = getUserRoot();
+        return userRoot ? userRoot.collection("archive") : null;
+      }
 
       let archivedGames = [];
       let archiveLoaded = false;
 
       async function loadArchive() {
+        if (!currentUser) {
+          archivedGames = [];
+          archiveLoaded = true;
+          render();
+          return;
+        }
+
         try {
-          const snap = await firestore
-            .collection("archive")
+          const archiveRef = getUserArchive();
+
+          const snap = await archiveRef
             .orderBy("archivedAt", "desc")
             .get();
 
@@ -688,7 +707,7 @@
           console.error("Archive load failed", e);
           archivedGames = [];
           archiveLoaded = true;
-          alert("Could not load the game archive.");
+          alert("Could not load your game archive.");
         }
 
         render();
@@ -760,7 +779,13 @@
         }
 
         try {
-          await firestore.collection("archive").doc(id).delete();
+          const archiveRef = getUserArchive();
+
+          if (!archiveRef) {
+            throw new Error("No signed-in user.");
+          }
+
+          await archiveRef.doc(id).delete();
           await loadArchive();
         } catch (e) {
           console.error("Archive delete failed", e);
@@ -825,31 +850,61 @@
       async function initStorage() {
         auth.onAuthStateChanged((user) => {
           currentUser = user;
-          updateAuthUi();
-        });
-        dbDoc.onSnapshot(
-          (snap) => {
-            state = snap.exists ? snap.data() : { players: {} };
-            if (!state || !state.players) state = { players: {} };
-            render();
-          },
-          (e) => {
-            console.error("Firestore read failed", e);
-            alert("Could not load the shared PotSplit data.");
+
+          if (unsubscribeSession) {
+            unsubscribeSession();
+            unsubscribeSession = null;
           }
-        );
+
+          state = { players: {} };
+          archivedGames = [];
+          archiveLoaded = false;
+          dbDoc = null;
+
+          if (!currentUser) {
+            archiveLoaded = true;
+            updateAuthUi();
+            render();
+            return;
+          }
+
+          const userRoot = getUserRoot();
+          dbDoc = userRoot.collection("session").doc("main");
+
+          unsubscribeSession = dbDoc.onSnapshot(
+            (snap) => {
+              state = snap.exists ? snap.data() : { players: {} };
+
+              if (!state || !state.players) {
+                state = { players: {} };
+              }
+
+              render();
+            },
+            (e) => {
+              console.error("Firestore read failed", e);
+              state = { players: {} };
+              alert("Could not load your PotSplit data.");
+              render();
+            }
+          );
+
+          updateAuthUi();
+          loadArchive();
+        });
       }
 
       async function saveState() {
-        if (!auth.currentUser) {
-          alert("Sign in with Google to edit the PotSplit.");
+        if (!auth.currentUser || !currentUser || !dbDoc) {
+          alert("Sign in with Google to edit your PotSplit.");
           return;
         }
+
         try {
           await dbDoc.set(state);
         } catch (e) {
           console.error("Firestore write failed", e);
-          alert("Could not save. Make sure you are signed in and have write access.");
+          alert("Could not save your PotSplit data.");
         }
       }
 
@@ -1107,7 +1162,13 @@
       async function archiveAndResetSession() {
 
         try {
-          await firestore.collection("archive").add({
+          const archiveRef = getUserArchive();
+
+          if (!archiveRef) {
+            throw new Error("No signed-in user.");
+          }
+
+          await archiveRef.add({
             players: state.players,
             archivedAt: firebase.firestore.FieldValue.serverTimestamp()
           });
