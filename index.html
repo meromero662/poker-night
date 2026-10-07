@@ -762,6 +762,28 @@
         return userRoot ? userRoot.collection("archive") : null;
       }
 
+      function getGroupSessionRef(groupId = currentGroupId) {
+        const groupRef = getGroupRef(groupId);
+        return groupRef ? groupRef.collection("session").doc("main") : null;
+      }
+
+      function getGroupArchive(groupId = currentGroupId) {
+        const groupRef = getGroupRef(groupId);
+        return groupRef ? groupRef.collection("archive") : null;
+      }
+
+      function isCurrentUserBank() {
+        return !!currentUser &&
+               !!currentGroup &&
+               currentGroup.bankId === currentUser.uid;
+      }
+
+      function canEditCurrentSession() {
+        if (!currentUser) return false;
+        if (!currentGroupId) return true;
+        return isCurrentUserBank();
+      }
+
       let archivedGames = [];
       let archiveLoaded = false;
 
@@ -774,7 +796,9 @@
         }
 
         try {
-          const archiveRef = getUserArchive();
+          const archiveRef = currentGroupId
+            ? getGroupArchive(currentGroupId)
+            : getUserArchive();
 
           const snap = await archiveRef
             .orderBy("archivedAt", "desc")
@@ -857,12 +881,19 @@
           return;
         }
 
+        if (!canEditCurrentSession()) {
+          alert("Only the Bank can delete archived games from this poker group.");
+          return;
+        }
+
         if (!confirm("Permanently delete this archived game? This cannot be undone.")) {
           return;
         }
 
         try {
-          const archiveRef = getUserArchive();
+          const archiveRef = currentGroupId
+            ? getGroupArchive(currentGroupId)
+            : getUserArchive();
 
           if (!archiveRef) {
             throw new Error("No signed-in user.");
@@ -1243,7 +1274,7 @@
       }
 
       async function initStorage() {
-        auth.onAuthStateChanged((user) => {
+        auth.onAuthStateChanged(async (user) => {
           currentUser = user;
 
           if (unsubscribeSession) {
@@ -1272,8 +1303,17 @@
             return;
           }
 
+          updateAuthUi();
+
+          await loadCurrentGroup();
+
           const userRoot = getUserRoot();
-          dbDoc = userRoot.collection("session").doc("main");
+
+          if (currentGroupId) {
+            dbDoc = getGroupSessionRef(currentGroupId);
+          } else {
+            dbDoc = userRoot.collection("session").doc("main");
+          }
 
           unsubscribeSession = dbDoc.onSnapshot(
             (snap) => {
@@ -1293,15 +1333,19 @@
             }
           );
 
-          updateAuthUi();
           loadArchive();
-          loadCurrentGroup();
+          render();
         });
       }
 
       async function saveState() {
         if (!auth.currentUser || !currentUser || !dbDoc) {
           alert("Sign in with Google to edit your PotSplit.");
+          return;
+        }
+
+        if (!canEditCurrentSession()) {
+          alert("Only the Bank can edit this poker group.");
           return;
         }
 
@@ -1373,6 +1417,11 @@
 
 
       function addBuyIn() {
+        if (!canEditCurrentSession()) {
+          alert("Only the Bank can edit this poker group.");
+          return;
+        }
+
 
         const enteredName = document.getElementById("nameInput").value.trim();
 
@@ -1411,6 +1460,11 @@
 
 
       function setCashout(name, val) {
+        if (!canEditCurrentSession()) {
+          alert("Only the Bank can edit this poker group.");
+          return;
+        }
+
 
         const amount = parseFloat(val);
 
@@ -1445,6 +1499,11 @@
 
 
       function saveEdit(name, idx, val) {
+        if (!canEditCurrentSession()) {
+          alert("Only the Bank can edit this poker group.");
+          return;
+        }
+
 
         const amount = parseFloat(val);
 
@@ -1463,6 +1522,11 @@
 
 
       function deleteBuyIn(name, idx) {
+        if (!canEditCurrentSession()) {
+          alert("Only the Bank can edit this poker group.");
+          return;
+        }
+
 
         if (!confirm("Delete this buy-in?")) return;
 
@@ -1489,6 +1553,11 @@
 
 
       function deletePlayer(name) {
+        if (!canEditCurrentSession()) {
+          alert("Only the Bank can edit this poker group.");
+          return;
+        }
+
 
         if (!confirm(`Remove ${name} and all their buy-ins?`)) return;
 
@@ -1504,6 +1573,11 @@
 
         if (!auth.currentUser) {
           alert("Sign in with Google to reset the PotSplit.");
+          return;
+        }
+
+        if (!canEditCurrentSession()) {
+          alert("Only the Bank can reset this poker group.");
           return;
         }
 
@@ -1565,9 +1639,16 @@
       }
 
       async function archiveAndResetSession() {
+        if (!canEditCurrentSession()) {
+          alert("Only the Bank can reset this poker group.");
+          return;
+        }
+
 
         try {
-          const archiveRef = getUserArchive();
+          const archiveRef = currentGroupId
+            ? getGroupArchive(currentGroupId)
+            : getUserArchive();
 
           if (!archiveRef) {
             throw new Error("No signed-in user.");
@@ -1591,6 +1672,11 @@
       }
 
       async function confirmDeleteAndResetSession() {
+        if (!canEditCurrentSession()) {
+          alert("Only the Bank can reset this poker group.");
+          return;
+        }
+
 
         const confirmed = confirm(
           "Permanently delete this game without saving it to Archive?"
@@ -1717,6 +1803,8 @@
 
       function render() {
 
+        const canEdit = canEditCurrentSession();
+
         document.getElementById("potTotal").textContent =
 
           potTotal().toFixed(0) + " kr";
@@ -1731,6 +1819,7 @@
 
           main.innerHTML = `
 
+      ${canEdit ? `
       <div class="card">
 
         <p class="section-title">Log a buy-in</p>
@@ -1744,6 +1833,11 @@
         <button onclick="addBuyIn()">Add buy-in</button>
 
       </div>
+      ` : `
+      <div class="status">
+        Read only - only the Bank can edit this poker group.
+      </div>
+      `}
 
       <div class="card">
 
@@ -1779,9 +1873,9 @@
 
                   : `<span class="amt">${b.amount.toFixed(0)} kr</span>
 
-                   <button class="iconbtn" onclick="event.stopPropagation();startEdit('${escJs(n)}',${idx})">✎</button>
+                   ${canEdit ? `<button class="iconbtn" onclick="event.stopPropagation();startEdit('${escJs(n)}',${idx})">✎</button>` : ""}
 
-                   <button class="iconbtn danger" onclick="event.stopPropagation();deleteBuyIn('${escJs(n)}',${idx})">✕</button>`
+                   ${canEdit ? `<button class="iconbtn danger" onclick="event.stopPropagation();deleteBuyIn('${escJs(n)}',${idx})">✕</button>` : ""}`
 
               }
 
@@ -1799,7 +1893,7 @@
 
               <span class="amt">${totalBuyIn(p).toFixed(0)} kr</span>
 
-              <button class="pdelete" onclick="event.stopPropagation();deletePlayer('${escJs(n)}')">✕</button>
+              ${canEdit ? `<button class="pdelete" onclick="event.stopPropagation();deletePlayer('${escJs(n)}')">✕</button>` : ""}
 
             </div>
 
@@ -1811,13 +1905,13 @@
 
                 .join("")
 
-            : '<div class="empty">No buy-ins yet — add the first one above.</div>'
+            : `<div class="empty">${canEdit ? "No buy-ins yet - add the first one above." : "No buy-ins yet."}</div>`
 
         }
 
       </div>
 
-      <button class="secondary" onclick="resetSession()">Reset session</button>
+      ${canEdit ? `<button class="secondary" onclick="resetSession()">Reset session</button>` : ""}
 
     `;
 
@@ -1841,7 +1935,10 @@
 
                   return `<div class="row"><div><div class="pname">${esc(n)}</div><div class="psub">bought in ${totalBuyIn(p).toFixed(0)} kr</div></div>
 
-          <input style="width:100px;margin:0" type="number" inputmode="decimal" placeholder="kr" value="${p.cashout ?? ""}" onchange="setCashout('${escJs(n)}', this.value)"></div>`;
+          ${canEdit
+            ? `<input style="width:100px;margin:0" type="number" inputmode="decimal" placeholder="kr" value="${p.cashout ?? ""}" onchange="setCashout('${escJs(n)}', this.value)">`
+            : `<span class="amt">${p.cashout == null ? "-" : p.cashout.toFixed(0) + " kr"}</span>`
+          }</div>`;
 
                 })
 
@@ -1972,12 +2069,14 @@
                     : '<div class="empty">No payments needed.</div>'
                 }
 
+                ${canEdit ? `
                 <button
                   class="secondary"
                   onclick="deleteArchivedGame('${escJs(game.id)}')"
                 >
                   Delete permanently
                 </button>
+                ` : ""}
               </div>`;
             }).join("");
           }
