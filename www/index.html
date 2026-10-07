@@ -599,6 +599,26 @@
       .authbar { margin-top: 10px; display:flex; justify-content:center; align-items:center; gap:8px; flex-wrap:wrap; }
       .authbar button { padding:7px 12px; font-size:.78rem; width:auto; }
       .auth-user { color:var(--muted); font-size:.76rem; max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+      .group-bar {
+        margin-top: 10px;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+
+      .group-bar span {
+        color: var(--muted);
+        font-size: .76rem;
+      }
+
+      .group-bar button {
+        padding: 7px 12px;
+        font-size: .78rem;
+        width: auto;
+      }
     </style>
 
   </head>
@@ -615,6 +635,13 @@
       <div class="authbar">
         <span class="auth-user" id="authUser">View only</span>
         <button id="authButton" class="secondary" type="button" onclick="toggleSignIn()">Sign in to edit</button>
+      </div>
+
+      <div id="groupBar" class="group-bar">
+        <span id="groupStatus">No poker group selected</span>
+        <button id="createGroupButton" class="secondary" type="button" onclick="createGroup()">
+          Create Group
+        </button>
       </div>
 
     </header>
@@ -669,9 +696,25 @@
       let currentUser = null;
       let unsubscribeSession = null;
 
+      // Multiplayer group state
+      let currentGroupId = null;
+      let currentGroup = null;
+      let currentMember = null;
+
       function getUserRoot() {
         if (!currentUser) return null;
         return firestore.collection("users").doc(currentUser.uid);
+      }
+
+      function getGroupRef(groupId = currentGroupId) {
+        if (!groupId) return null;
+        return firestore.collection("groups").doc(groupId);
+      }
+
+      function getGroupMemberRef(groupId = currentGroupId, userId = currentUser?.uid) {
+        const groupRef = getGroupRef(groupId);
+        if (!groupRef || !userId) return null;
+        return groupRef.collection("members").doc(userId);
       }
 
       function getUserArchive() {
@@ -844,6 +887,50 @@
         } catch (e) {
           console.error(e);
           alert("Sign-in failed: " + (e.message || e));
+        }
+      }
+
+      async function createGroup() {
+        if (!currentUser) {
+          alert("Sign in with Google before creating a poker group.");
+          return;
+        }
+
+        const name = prompt("Name your poker group:", "Friday Poker");
+
+        if (name === null) return;
+
+        const groupName = name.trim();
+
+        if (!groupName) {
+          alert("Please enter a group name.");
+          return;
+        }
+
+        try {
+          const groupRef = firestore.collection("groups").doc();
+
+          await groupRef.set({
+            name: groupName,
+            bankId: currentUser.uid,
+            bankName: currentUser.displayName || currentUser.email || "Bank",
+            status: "active",
+            createdAt: firebase.firestore.FieldValue.serverTimestamp()
+          });
+
+          currentGroupId = groupRef.id;
+          currentGroup = {
+            name: groupName,
+            bankId: currentUser.uid,
+            bankName: currentUser.displayName || currentUser.email || "Bank",
+            status: "active"
+          };
+
+          alert("Poker group created successfully.");
+
+        } catch (e) {
+          console.error("Group creation failed", e);
+          alert("Could not create the poker group.");
         }
       }
 
