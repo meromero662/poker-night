@@ -740,48 +740,57 @@
       let currentGroup = null;
       let currentMember = null;
 
+      // Get the signed-in user's Firestore document.
       function getUserRoot() {
         if (!currentUser) return null;
         return firestore.collection("users").doc(currentUser.uid);
       }
 
+      // Get the selected group's document.
       function getGroupRef(groupId = currentGroupId) {
         if (!groupId) return null;
         return firestore.collection("groups").doc(groupId);
       }
 
+      // Get the user's saved group selection.
       function getUserGroupProfileRef() {
         const userRoot = getUserRoot();
         return userRoot ? userRoot.collection("profile").doc("group") : null;
       }
 
+      // Get a group member document.
       function getGroupMemberRef(groupId = currentGroupId, userId = currentUser?.uid) {
         const groupRef = getGroupRef(groupId);
         if (!groupRef || !userId) return null;
         return groupRef.collection("members").doc(userId);
       }
 
+      // Get the user's personal archive.
       function getUserArchive() {
         const userRoot = getUserRoot();
         return userRoot ? userRoot.collection("archive") : null;
       }
 
+      // Get the group's active session.
       function getGroupSessionRef(groupId = currentGroupId) {
         const groupRef = getGroupRef(groupId);
         return groupRef ? groupRef.collection("session").doc("main") : null;
       }
 
+      // Get the group's game archive.
       function getGroupArchive(groupId = currentGroupId) {
         const groupRef = getGroupRef(groupId);
         return groupRef ? groupRef.collection("archive") : null;
       }
 
+      // Check whether the user owns the group.
       function isCurrentUserBank() {
         return !!currentUser &&
                !!currentGroup &&
                currentGroup.bankId === currentUser.uid;
       }
 
+      // Check whether the user can edit the session.
       function canEditCurrentSession() {
         if (!currentUser) return false;
         if (!currentGroupId) return true;
@@ -791,6 +800,7 @@
       let archivedGames = [];
       let archiveLoaded = false;
 
+      // Load archived games from Firestore.
       async function loadArchive() {
         const generation = ++archiveGeneration;
 
@@ -829,6 +839,7 @@
         render();
       }
 
+      // Calculate payments for an archived game.
       function calcArchivedSettlement(players) {
         const balances = Object.entries(players || {})
           .map(([name, player]) => ({
@@ -884,6 +895,7 @@
         return payments;
       }
 
+      // Delete an archived game after permission checks.
       async function deleteArchivedGame(id) {
         if (!auth.currentUser) {
           alert("Sign in with Google to delete an archived game.");
@@ -916,6 +928,7 @@
         }
       }
 
+      // Update the sign-in controls.
       function updateAuthUi() {
         const userEl = document.getElementById("authUser");
         const btn = document.getElementById("authButton");
@@ -929,6 +942,7 @@
         }
       }
 
+      // Handle web or Android Google sign-in.
       async function toggleSignIn() {
         try {
           const isNative =
@@ -970,6 +984,7 @@
         }
       }
 
+      // Generate a six-character invitation code.
       function generateGroupCode() {
         const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
         const values = new Uint32Array(6);
@@ -981,6 +996,7 @@
         ).join("");
       }
 
+      // Display group details and member controls.
       async function openGroupDetails() {
         if (!currentUser || !currentGroupId || !currentGroup) {
           alert("No poker group selected.");
@@ -1089,6 +1105,7 @@
         }
       }
 
+      // Remove a member as the Bank.
       async function removeGroupMember(userId, memberName) {
         if (!currentUser || !currentGroupId || !isCurrentUserBank()) {
           alert("Only the Bank can remove group members.");
@@ -1124,11 +1141,13 @@
         }
       }
 
+      // Close the group details dialog.
       function closeGroupDetails() {
         const modal = document.getElementById("groupDetailsModal");
         if (modal) modal.remove();
       }
 
+      // Open the create-group dialog.
       function createGroup() {
         if (!currentUser) {
           alert("Sign in with Google before creating a poker group.");
@@ -1183,11 +1202,13 @@
         if (input) input.focus();
       }
 
+      // Close the create-group dialog.
       function closeCreateGroupModal() {
         const modal = document.getElementById("createGroupModal");
         if (modal) modal.remove();
       }
 
+      // Open the join-group dialog.
       function joinGroup() {
         if (!currentUser) {
           alert("Sign in with Google before joining a poker group.");
@@ -1242,11 +1263,13 @@
         if (input) input.focus();
       }
 
+      // Close the join-group dialog.
       function closeJoinGroupModal() {
         const modal = document.getElementById("joinGroupModal");
         if (modal) modal.remove();
       }
 
+      // Join a group using its invitation code.
       async function submitJoinGroup() {
         if (!currentUser) {
           closeJoinGroupModal();
@@ -1311,6 +1334,7 @@
         }
       }
 
+      // Create a group with a unique invitation code.
       async function submitCreateGroup() {
         if (!currentUser) {
           closeCreateGroupModal();
@@ -1398,6 +1422,7 @@
         }
       }
 
+      // Update group status and action buttons.
       function updateGroupUi() {
         const groupStatus = document.getElementById("groupStatus");
         const createButton = document.getElementById("createGroupButton");
@@ -1422,6 +1447,7 @@
       }
 
 
+      // Restore the user's selected group.
       async function loadCurrentGroup() {
         if (!currentUser) return;
 
@@ -1484,6 +1510,7 @@
         }
       }
 
+      // Stop listening for membership changes.
       function stopMembershipListener() {
         if (unsubscribeMembership) {
           unsubscribeMembership();
@@ -1491,6 +1518,7 @@
         }
       }
 
+      // Disconnect a removed group member.
       async function handleMembershipRemoval(groupId, userId) {
         if (!currentUser ||
             currentUser.uid !== userId ||
@@ -1538,6 +1566,7 @@
         }
       }
 
+      // Watch membership changes in real time.
       function subscribeToMembership() {
         stopMembershipListener();
 
@@ -1577,6 +1606,7 @@
           }
         );
       }
+      // Watch the active session in real time.
       function subscribeToSession() {
         const generation = ++sessionGeneration;
 
@@ -1628,6 +1658,7 @@
           }
         );
       }
+      // Initialize authentication and data listeners.
       async function initStorage() {
         auth.onAuthStateChanged(async (user) => {
           stopMembershipListener();
@@ -1671,6 +1702,7 @@
         });
       }
 
+      // Save permitted session changes to Firestore.
       async function saveState() {
         if (!auth.currentUser || !currentUser || !dbDoc) {
           alert("Sign in with Google to edit your PotSplit.");
@@ -1690,6 +1722,7 @@
         }
       }
 
+      // Switch the active application tab.
       function setTab(t) {
 
         tab = t;
@@ -1729,12 +1762,14 @@
 
 
 
+      // Sum a player's buy-ins.
       function totalBuyIn(p) {
 
         return (p.buyIns || []).reduce((s, b) => s + b.amount, 0);
 
       }
 
+      // Sum all players' buy-ins.
       function potTotal() {
 
         return Object.values(state.players).reduce(
@@ -1749,6 +1784,7 @@
 
 
 
+      // Add a buy-in for a player.
       function addBuyIn() {
         if (!canEditCurrentSession()) {
           alert("Only the Bank can edit this poker group.");
@@ -1792,6 +1828,7 @@
 
 
 
+      // Set a player's cashout amount.
       function setCashout(name, val) {
         if (!canEditCurrentSession()) {
           alert("Only the Bank can edit this poker group.");
@@ -1809,6 +1846,7 @@
 
 
 
+      // Expand or collapse player details.
       function toggleExpand(name) {
 
         expanded[name] = !expanded[name];
@@ -1821,6 +1859,7 @@
 
 
 
+      // Start editing a buy-in.
       function startEdit(name, idx) {
 
         editing = name + "|" + idx;
@@ -1831,6 +1870,7 @@
 
 
 
+      // Save an edited buy-in.
       function saveEdit(name, idx, val) {
         if (!canEditCurrentSession()) {
           alert("Only the Bank can edit this poker group.");
@@ -1854,6 +1894,7 @@
 
 
 
+      // Delete a buy-in after confirmation.
       function deleteBuyIn(name, idx) {
         if (!canEditCurrentSession()) {
           alert("Only the Bank can edit this poker group.");
@@ -1885,6 +1926,7 @@
 
 
 
+      // Remove a player and their buy-ins.
       function deletePlayer(name) {
         if (!canEditCurrentSession()) {
           alert("Only the Bank can edit this poker group.");
@@ -1902,6 +1944,7 @@
 
 
 
+      // Start the session reset flow.
       async function resetSession() {
 
         if (!auth.currentUser) {
@@ -1923,6 +1966,7 @@
 
       }
 
+      // Show archive and reset options.
       function showResetModal() {
 
         const existing = document.getElementById("resetModal");
@@ -1964,6 +2008,7 @@
 
       }
 
+      // Close the reset dialog.
       function closeResetModal() {
 
         const modal = document.getElementById("resetModal");
@@ -1971,6 +2016,7 @@
 
       }
 
+      // Archive the game before clearing the session.
       async function archiveAndResetSession() {
         if (!canEditCurrentSession()) {
           alert("Only the Bank can reset this poker group.");
@@ -2004,6 +2050,7 @@
 
       }
 
+      // Discard the game and clear the session.
       async function confirmDeleteAndResetSession() {
         if (!canEditCurrentSession()) {
           alert("Only the Bank can reset this poker group.");
@@ -2030,6 +2077,7 @@
 
       }
 
+      // Calculate balances and settlement payments.
       function calcSettlement() {
 
         const names = Object.keys(state.players);
@@ -2126,6 +2174,7 @@
 
       }
 
+      // Round a number to two decimal places.
       function round2(n) {
 
         return Math.round(n * 100) / 100;
@@ -2134,6 +2183,7 @@
 
 
 
+      // Render the current application view.
       function render() {
 
         const canEdit = canEditCurrentSession();
@@ -2418,6 +2468,7 @@
 
       }
 
+      // Escape text for safe HTML output.
       function esc(s) {
 
         return String(s).replace(
@@ -2444,6 +2495,7 @@
 
       }
 
+      // Escape text for inline JavaScript handlers.
       function escJs(s) {
 
         return String(s).replace(/'/g, "\\\\'");
