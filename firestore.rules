@@ -41,11 +41,25 @@ service cloud.firestore {
 
         allow create: if request.auth != null
                       && request.auth.uid == userId
+                      && request.resource.data.keys().hasOnly([
+                           "userId", "name", "role",
+                           "groupCode", "membershipId", "joinedAt"
+                         ])
+                      && request.resource.data.keys().hasAll([
+                           "userId", "name", "role",
+                           "groupCode", "membershipId", "joinedAt"
+                         ])
                       && request.resource.data.userId == request.auth.uid
                       && request.resource.data.role == "member"
+                      && request.resource.data.name is string
+                      && request.resource.data.name.size() > 0
                       && request.resource.data.groupCode is string
+                      && request.resource.data.groupCode.size() == 6
                       && request.resource.data.groupCode ==
-                         get(/databases/$(database)/documents/groups/$(groupId)).data.groupCode;
+                         get(/databases/$(database)/documents/groups/$(groupId)).data.groupCode
+                      && request.resource.data.membershipId is string
+                      && request.resource.data.membershipId.size() > 0
+                      && request.resource.data.joinedAt is timestamp;
 
         allow update, delete: if request.auth != null
                               && get(/databases/$(database)/documents/groups/$(groupId)).data.bankId == request.auth.uid;
