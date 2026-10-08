@@ -730,6 +730,10 @@
       let dbDoc = null;
       let currentUser = null;
       let unsubscribeSession = null;
+      let unsubscribeMembership = null;
+      let activeMembershipId = null;
+      let sessionGeneration = 0;
+      let archiveGeneration = 0;
 
       // Multiplayer group state
       let currentGroupId = null;
@@ -788,6 +792,8 @@
       let archiveLoaded = false;
 
       async function loadArchive() {
+        const generation = ++archiveGeneration;
+
         if (!currentUser) {
           archivedGames = [];
           archiveLoaded = true;
@@ -804,6 +810,8 @@
             .orderBy("archivedAt", "desc")
             .get();
 
+          if (generation !== archiveGeneration) return;
+
           archivedGames = snap.docs.map((doc) => ({
             id: doc.id,
             ...doc.data()
@@ -811,6 +819,7 @@
 
           archiveLoaded = true;
         } catch (e) {
+          if (generation !== archiveGeneration) return;
           console.error("Archive load failed", e);
           archivedGames = [];
           archiveLoaded = true;
@@ -1263,6 +1272,7 @@
           }
 
           const groupId = codeSnap.data().groupId;
+          const membershipId = firestore.collection("_membershipIds").doc().id;
           const memberRef = getGroupMemberRef(groupId, currentUser.uid);
 
           await memberRef.set({
@@ -1270,14 +1280,17 @@
             name: currentUser.displayName || currentUser.email || "Member",
             role: "member",
             groupCode: groupCode,
+            membershipId: membershipId,
             joinedAt: firebase.firestore.FieldValue.serverTimestamp()
           });
 
           const groupProfileRef = getUserGroupProfileRef();
           await groupProfileRef.set({
-            groupId: groupId
+            groupId: groupId,
+            membershipId: membershipId
           });
 
+          activeMembershipId = membershipId;
           currentGroupId = groupId;
           currentMember = {
             userId: currentUser.uid,
@@ -1287,6 +1300,9 @@
 
           closeJoinGroupModal();
           await loadCurrentGroup();
+          subscribeToMembership();
+          subscribeToSession();
+          loadArchive();
           render();
 
         } catch (e) {
@@ -1371,6 +1387,8 @@
           });
 
           updateGroupUi();
+          subscribeToSession();
+          loadArchive();
 
           closeCreateGroupModal();
 
@@ -1418,9 +1436,8 @@
             return;
           }
 
-          currentGroupId = profileSnap.data().groupId;
-
-          const groupSnap = await getGroupRef().get();
+          const savedGroupId = profileSnap.data().groupId;
+          const groupSnap = await getGroupRef(savedGroupId).get();
 
           if (!groupSnap.exists) {
             currentGroupId = null;
@@ -1429,9 +1446,30 @@
             return;
           }
 
+          const groupData = groupSnap.data();
+
+          if (groupData.bankId !== currentUser.uid) {
+            const memberSnap = await getGroupMemberRef(
+              savedGroupId,
+              currentUser.uid
+            ).get();
+
+            if (!memberSnap.exists) {
+              currentGroupId = null;
+              currentGroup = null;
+              currentMember = null;
+              updateGroupUi();
+              return;
+            }
+
+            currentMember = memberSnap.data();
+          }
+
+          activeMembershipId = profileSnap.data().membershipId || null;
+          currentGroupId = savedGroupId;
           currentGroup = {
             id: groupSnap.id,
-            ...groupSnap.data()
+            ...groupData
           };
 
           updateGroupUi();
@@ -1446,8 +1484,155 @@
         }
       }
 
+      function stopMembershipListener() {
+        if (unsubscribeMembership) {
+          unsubscribeMembership();
+          unsubscribeMembership = null;
+        }
+      }
+
+      async function handleMembershipRemoval(groupId, userId) {
+        if (!currentUser ||
+            currentUser.uid !== userId ||
+            currentGroupId !== groupId) {
+          return;
+        }
+
+        const removedMembershipId = activeMembershipId;
+        stopMembershipListener();
+        activeMembershipId = null;
+
+        // Disconnect immediately from the removed group.
+        currentGroupId = null;
+        currentGroup = null;
+        currentMember = null;
+
+        updateGroupUi();
+        subscribeToSession();
+
+        archivedGames = [];
+        archiveLoaded = false;
+        loadArchive();
+
+        try {
+          const profileRef = getUserGroupProfileRef();
+
+          await firestore.runTransaction(async (transaction) => {
+            const profileSnap = await transaction.get(profileRef);
+
+            if (profileSnap.exists &&
+                profileSnap.data().groupId === groupId &&
+                (profileSnap.data().membershipId || null) ===
+                  removedMembershipId) {
+              transaction.delete(profileRef);
+            }
+          });
+        } catch (e) {
+          console.error("Could not clear removed group profile", e);
+        }
+
+        if (currentUser &&
+            currentUser.uid === userId &&
+            !currentGroupId) {
+          alert("You have been removed from the poker group.");
+        }
+      }
+
+      function subscribeToMembership() {
+        stopMembershipListener();
+
+        if (!currentUser ||
+            !currentGroupId ||
+            isCurrentUserBank()) {
+          return;
+        }
+
+        const groupId = currentGroupId;
+        const userId = currentUser.uid;
+        const memberRef = getGroupMemberRef(groupId, userId);
+
+        unsubscribeMembership = memberRef.onSnapshot(
+          (snap) => {
+            if (!currentUser ||
+                currentUser.uid !== userId ||
+                currentGroupId !== groupId) {
+              return;
+            }
+
+            if (!snap.exists) {
+              handleMembershipRemoval(groupId, userId);
+            } else {
+              currentMember = snap.data();
+            }
+          },
+          (e) => {
+            console.error("Membership listener failed", e);
+
+            if (e.code === "permission-denied" &&
+                currentUser &&
+                currentUser.uid === userId &&
+                currentGroupId === groupId) {
+              handleMembershipRemoval(groupId, userId);
+            }
+          }
+        );
+      }
+      function subscribeToSession() {
+        const generation = ++sessionGeneration;
+
+        if (unsubscribeSession) {
+          unsubscribeSession();
+          unsubscribeSession = null;
+        }
+
+        if (!currentUser) {
+          dbDoc = null;
+          state = { players: {} };
+          render();
+          return;
+        }
+
+        const userRoot = getUserRoot();
+
+        dbDoc = currentGroupId
+          ? getGroupSessionRef(currentGroupId)
+          : userRoot.collection("session").doc("main");
+
+        state = { players: {} };
+        render();
+
+        unsubscribeSession = dbDoc.onSnapshot(
+          (snap) => {
+            if (generation !== sessionGeneration) return;
+            state = snap.exists ? snap.data() : { players: {} };
+
+            if (!state || !state.players) {
+              state = { players: {} };
+            }
+
+            render();
+          },
+          (e) => {
+            if (generation !== sessionGeneration) return;
+            console.error("Firestore read failed", e);
+
+            // Membership removal can revoke group session access.
+            // The membership listener handles disconnection.
+            if (e.code === "permission-denied" && currentGroupId) {
+              return;
+            }
+
+            state = { players: {} };
+            alert("Could not load your PotSplit data.");
+            render();
+          }
+        );
+      }
       async function initStorage() {
         auth.onAuthStateChanged(async (user) => {
+          stopMembershipListener();
+          ++sessionGeneration;
+          ++archiveGeneration;
           currentUser = user;
 
           if (unsubscribeSession) {
@@ -1463,6 +1648,7 @@
           currentGroupId = null;
           currentGroup = null;
           currentMember = null;
+          activeMembershipId = null;
 
           updateGroupUi();
 
@@ -1477,31 +1663,8 @@
 
           await loadCurrentGroup();
 
-          const userRoot = getUserRoot();
-
-          if (currentGroupId) {
-            dbDoc = getGroupSessionRef(currentGroupId);
-          } else {
-            dbDoc = userRoot.collection("session").doc("main");
-          }
-
-          unsubscribeSession = dbDoc.onSnapshot(
-            (snap) => {
-              state = snap.exists ? snap.data() : { players: {} };
-
-              if (!state || !state.players) {
-                state = { players: {} };
-              }
-
-              render();
-            },
-            (e) => {
-              console.error("Firestore read failed", e);
-              state = { players: {} };
-              alert("Could not load your PotSplit data.");
-              render();
-            }
-          );
+          subscribeToMembership();
+          subscribeToSession();
 
           loadArchive();
           render();
