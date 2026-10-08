@@ -18,6 +18,7 @@
 
     <style>
 
+      /* Theme colors and device safe-area spacing. */
       :root {
 
         --felt: #0f3d2e;
@@ -104,6 +105,7 @@
 
       }
 
+      /* Header, pot total, and application layout. */
       header {
 
         padding: 20px 20px 14px;
@@ -162,6 +164,7 @@
 
       }
 
+      /* Shared cards and form controls. */
       .card {
 
         background: var(--card-bg);
@@ -272,6 +275,7 @@
 
       }
 
+      /* Confirmation dialogs and group forms. */
       .reset-modal-overlay {
         position: fixed;
         inset: 0;
@@ -411,6 +415,7 @@
 
       }
 
+      /* Player rows and buy-in history. */
       .prow {
 
         cursor: pointer;
@@ -525,6 +530,7 @@
 
       }
 
+      /* Bottom navigation and settlement details. */
       nav {
 
         position: fixed;
@@ -628,6 +634,7 @@
       }
 
 
+      /* Authentication and group status controls. */
       .authbar { margin-top: 10px; display:flex; justify-content:center; align-items:center; gap:8px; flex-wrap:wrap; }
       .authbar button { padding:7px 12px; font-size:.78rem; width:auto; }
       .auth-user { color:var(--muted); font-size:.76rem; max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
@@ -657,6 +664,7 @@
 
   <body>
 
+    <!-- Pot total, sign-in, and group controls. -->
     <header>
 
       <h1>PotSplit</h1>
@@ -681,8 +689,10 @@
 
     </header>
 
+    <!-- Active tab content is rendered here. -->
     <main id="main"></main>
 
+    <!-- Primary application navigation. -->
     <nav>
 
       <button id="tabBuy" class="active" onclick="setTab('buy')">
@@ -700,11 +710,13 @@
 
 
 
+    <!-- Firebase SDKs for authentication and shared data. -->
     <script src="https://www.gstatic.com/firebasejs/12.19.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/12.19.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore-compat.js"></script>
 
     <script>
+      // Firebase connection and application state.
       const firebaseConfig = {
         apiKey: "AIzaSyC7dL55XgkFQ0XdRtJaRNiTda8F7FvesSU",
         authDomain: "poker-night-22bd4.firebaseapp.com",
