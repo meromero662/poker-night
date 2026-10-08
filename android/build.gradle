@@ -1,5 +1,6 @@
 // Top-level build file where you can add configuration options common to all sub-projects/modules.
 
+// Configure Android build plugins and their repositories.
 buildscript {
     
     repositories {
@@ -17,6 +18,7 @@ buildscript {
 
 apply from: "variables.gradle"
 
+// Share dependency repositories across Android modules.
 allprojects {
     repositories {
         google()
