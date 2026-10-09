@@ -2045,19 +2045,38 @@
             throw new Error("No signed-in user.");
           }
 
-          await archiveRef.add({
-            players: state.players,
-            archivedAt: firebase.firestore.FieldValue.serverTimestamp()
+          if (!dbDoc) {
+            throw new Error("No active session.");
+          }
+
+          // Archive and clear together; reject a reset if the session changed.
+          const expectedPlayers = JSON.stringify(state.players);
+          const archiveDoc = archiveRef.doc();
+          await firestore.runTransaction(async (transaction) => {
+            const sessionSnapshot = await transaction.get(dbDoc);
+            const savedPlayers = sessionSnapshot.exists
+              ? (sessionSnapshot.data().players || {})
+              : {};
+
+            if (JSON.stringify(savedPlayers) !== expectedPlayers) {
+              throw new Error("SESSION_CHANGED");
+            }
+
+            transaction.set(archiveDoc, {
+              players: savedPlayers,
+              archivedAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
+            transaction.set(dbDoc, { players: {} });
           });
 
           state = { players: {} };
-          await dbDoc.set(state);
-
           closeResetModal();
 
         } catch (e) {
           console.error("Archive/reset failed", e);
-          alert("Could not archive the game. The current session was not cleared.");
+          alert(e.message === "SESSION_CHANGED"
+            ? "The session changed. Review the latest game before archiving."
+            : "Could not archive the game. The current session was not cleared.");
         }
 
       }
