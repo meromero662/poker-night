@@ -534,6 +534,7 @@
       nav {
 
         position: fixed;
+        z-index: 1000;
 
         bottom: 0;
 
@@ -746,6 +747,7 @@
       let activeMembershipId = null;
       let sessionGeneration = 0;
       let archiveGeneration = 0;
+      let confirmedSessionPlayers = null;
 
       // Multiplayer group state
       let currentGroupId = null;
@@ -1621,6 +1623,7 @@
       // Watch the active session in real time.
       function subscribeToSession() {
         const generation = ++sessionGeneration;
+        confirmedSessionPlayers = null;
 
         if (unsubscribeSession) {
           unsubscribeSession();
@@ -1643,16 +1646,28 @@
         state = { players: {} };
         render();
 
-        unsubscribeSession = dbDoc.onSnapshot(
+        unsubscribeSession = dbDoc.onSnapshot({ includeMetadataChanges: true },
           (snap) => {
             if (generation !== sessionGeneration) return;
-            state = snap.exists ? snap.data() : { players: {} };
-
-            if (!state || !state.players) {
-              state = { players: {} };
+            if (!snap.metadata.fromCache && !snap.metadata.hasPendingWrites) {
+              confirmedSessionPlayers = JSON.stringify(
+                snap.exists ? (snap.data().players || {}) : {}
+              );
             }
 
-            render();
+            const incomingState = snap.exists
+              ? snap.data()
+              : { players: {} };
+
+            const normalizedState = incomingState && incomingState.players
+              ? incomingState
+              : { players: {} };
+
+            // Metadata-only changes should not redraw the interface.
+            if (JSON.stringify(state) !== JSON.stringify(normalizedState)) {
+              state = normalizedState;
+              render();
+            }
           },
           (e) => {
             if (generation !== sessionGeneration) return;
@@ -1714,6 +1729,109 @@
         });
       }
 
+      // Serialize session operations to preserve their order.
+      let sessionWriteQueue = Promise.resolve();
+      let activeSessionOperations = 0;
+
+      function queueSessionWrite(operation) {
+        const result = sessionWriteQueue.then(async () => {
+          activeSessionOperations++;
+
+          try {
+            return await operation();
+          } finally {
+            activeSessionOperations--;
+          }
+        });
+
+        sessionWriteQueue = result.catch(() => {});
+        return result;
+      }
+
+      // Apply a session change against the latest Firestore data.
+      async function updateSessionTransaction(sessionRef, change) {
+        return firestore.runTransaction(async (transaction) => {
+          const snapshot = await transaction.get(sessionRef);
+          const latest = snapshot.exists
+            ? snapshot.data()
+            : { players: {} };
+
+          if (!latest.players) {
+            latest.players = {};
+          }
+
+          const updated = change(latest);
+
+          transaction.set(sessionRef, updated);
+          return updated;
+        });
+      }
+      // Queue an edit and apply it to the latest session.
+      function applySessionChange(change) {
+        const sessionRef = dbDoc;
+        const generation = sessionGeneration;
+        const userId = currentUser ? currentUser.uid : null;
+
+        if (!sessionRef || !userId || !canEditCurrentSession()) {
+          alert("You do not have permission to edit this session.");
+          return Promise.resolve(false);
+        }
+
+        return queueSessionWrite(async () => {
+          if (
+            generation !== sessionGeneration ||
+            sessionRef !== dbDoc ||
+            !currentUser ||
+            currentUser.uid !== userId ||
+            !canEditCurrentSession()
+          ) {
+            return false;
+          }
+
+          try {
+            await updateSessionTransaction(sessionRef, change);
+
+            // The transaction succeeded. A refresh failure must not
+            // incorrectly report that the edit was rejected.
+            try {
+              const confirmed = await sessionRef.get({
+                source: "server"
+              });
+
+              if (
+                generation === sessionGeneration &&
+                sessionRef === dbDoc &&
+                currentUser &&
+                currentUser.uid === userId
+              ) {
+                state = confirmed.exists
+                  ? confirmed.data()
+                  : { players: {} };
+
+                if (!state || !state.players) {
+                  state = { players: {} };
+                }
+
+                render();
+              }
+            } catch (refreshError) {
+              console.warn(
+                "Session saved, but server refresh failed",
+                refreshError
+              );
+              alert(
+                "Your change was saved, but the session could not be refreshed. Check your connection."
+              );
+            }
+
+            return true;
+          } catch (e) {
+            console.error("Session update failed", e);
+            alert("Could not save your session change.");
+            return false;
+          }
+        });
+      }
       // Save permitted session changes to Firestore.
       async function saveState() {
         if (!auth.currentUser || !currentUser || !dbDoc) {
@@ -1803,43 +1921,41 @@
           return;
         }
 
+        const nameInput = document.getElementById("nameInput");
+        const amountInput = document.getElementById("amountInput");
 
-        const enteredName = document.getElementById("nameInput").value.trim();
+        const enteredName = nameInput.value.trim();
+        const amount = parseFloat(amountInput.value);
 
-        const existingName = Object.keys(state.players).find((n) => n.toLowerCase() === enteredName.toLowerCase());
+        if (!enteredName || !Number.isFinite(amount) || amount <= 0) return;
 
-        const name = existingName || enteredName;
-
-        const amount = parseFloat(document.getElementById("amountInput").value);
-
-        if (!enteredName || !amount || amount <= 0) return;
-
-        if (!state.players[name])
-
-          state.players[name] = { buyIns: [], cashout: null };
-
-        state.players[name].buyIns.push({
-
+        const buyIn = {
           amount,
-
           time: new Date().toLocaleTimeString([], {
-
             hour: "2-digit",
+            minute: "2-digit"
+          })
+        };
 
-            minute: "2-digit",
+        applySessionChange((latest) => {
+          const existingName = Object.keys(latest.players).find(
+            (name) => name.toLowerCase() === enteredName.toLowerCase()
+          );
 
-          }),
+          const name = existingName || enteredName;
 
+          if (!latest.players[name]) {
+            latest.players[name] = { buyIns: [], cashout: null };
+          }
+
+          latest.players[name].buyIns.push(buyIn);
+          return latest;
+        }).then((saved) => {
+          if (saved) {
+            amountInput.value = "";
+          }
         });
-
-        document.getElementById("amountInput").value = "";
-
-        saveState();
-
       }
-
-
-
       // Set a player's cashout amount.
       function setCashout(name, val) {
         if (!canEditCurrentSession()) {
@@ -1847,17 +1963,18 @@
           return;
         }
 
-
         const amount = parseFloat(val);
+        const cashout = Number.isFinite(amount) ? amount : null;
 
-        state.players[name].cashout = isNaN(amount) ? null : amount;
+        applySessionChange((latest) => {
+          if (!latest.players[name]) {
+            throw new Error("PLAYER_NOT_FOUND");
+          }
 
-        saveState();
-
+          latest.players[name].cashout = cashout;
+          return latest;
+        });
       }
-
-
-
       // Expand or collapse player details.
       function toggleExpand(name) {
 
@@ -1889,23 +2006,41 @@
           return;
         }
 
-
         const amount = parseFloat(val);
 
-        if (amount && amount > 0) {
-
-          state.players[name].buyIns[idx].amount = amount;
-
+        if (!Number.isFinite(amount) || amount <= 0) {
+          return;
         }
 
-        editing = null;
+        const originalBuyIn = state.players[name]?.buyIns?.[idx];
 
-        saveState();
+        if (!originalBuyIn) {
+          alert("This buy-in is no longer available.");
+          return;
+        }
 
+        const expectedBuyIn = JSON.stringify(originalBuyIn);
+
+        applySessionChange((latest) => {
+          const player = latest.players[name];
+
+          if (
+            !player ||
+            !player.buyIns[idx] ||
+            JSON.stringify(player.buyIns[idx]) !== expectedBuyIn
+          ) {
+            throw new Error("BUYIN_CHANGED");
+          }
+
+          player.buyIns[idx].amount = amount;
+          return latest;
+        }).then((saved) => {
+          if (saved) {
+            editing = null;
+            render();
+          }
+        });
       }
-
-
-
       // Delete a buy-in after confirmation.
       function deleteBuyIn(name, idx) {
         if (!canEditCurrentSession()) {
@@ -1913,31 +2048,41 @@
           return;
         }
 
+        const originalBuyIn = state.players[name]?.buyIns?.[idx];
+
+        if (!originalBuyIn) {
+          alert("This buy-in is no longer available.");
+          return;
+        }
 
         if (!confirm("Delete this buy-in?")) return;
 
-        state.players[name].buyIns.splice(idx, 1);
+        const expectedBuyIn = JSON.stringify(originalBuyIn);
 
-        if (
+        applySessionChange((latest) => {
+          const player = latest.players[name];
 
-          state.players[name].buyIns.length === 0 &&
+          if (
+            !player ||
+            !player.buyIns ||
+            !player.buyIns[idx] ||
+            JSON.stringify(player.buyIns[idx]) !== expectedBuyIn
+          ) {
+            throw new Error("BUYIN_CHANGED");
+          }
 
-          (state.players[name].cashout === null ||
+          player.buyIns.splice(idx, 1);
 
-            state.players[name].cashout === undefined)
+          if (
+            player.buyIns.length === 0 &&
+            (player.cashout === null || player.cashout === undefined)
+          ) {
+            delete latest.players[name];
+          }
 
-        ) {
-
-          delete state.players[name];
-
-        }
-
-        saveState();
-
+          return latest;
+        });
       }
-
-
-
       // Remove a player and their buy-ins.
       function deletePlayer(name) {
         if (!canEditCurrentSession()) {
@@ -1945,17 +2090,31 @@
           return;
         }
 
+        const originalPlayer = state.players[name];
+
+        if (!originalPlayer) {
+          alert("This player is no longer available.");
+          return;
+        }
 
         if (!confirm(`Remove ${name} and all their buy-ins?`)) return;
 
-        delete state.players[name];
+        const expectedPlayer = JSON.stringify(originalPlayer);
 
-        saveState();
+        applySessionChange((latest) => {
+          const player = latest.players[name];
 
+          if (
+            !player ||
+            JSON.stringify(player) !== expectedPlayer
+          ) {
+            throw new Error("PLAYER_CHANGED");
+          }
+
+          delete latest.players[name];
+          return latest;
+        });
       }
-
-
-
       // Start the session reset flow.
       async function resetSession() {
 
@@ -1979,7 +2138,14 @@
       }
 
       // Show archive and reset options.
+      let resetModalSession = null;
+
       function showResetModal() {
+        resetModalSession = {
+          generation: sessionGeneration,
+          sessionRef: dbDoc,
+          players: JSON.stringify(state.players || {})
+        };
 
         const existing = document.getElementById("resetModal");
         if (existing) existing.remove();
@@ -2022,6 +2188,7 @@
 
       // Close the reset dialog.
       function closeResetModal() {
+        resetModalSession = null;
 
         const modal = document.getElementById("resetModal");
         if (modal) modal.remove();
@@ -2030,45 +2197,92 @@
 
       // Archive the game before clearing the session.
       async function archiveAndResetSession() {
-        if (!canEditCurrentSession()) {
+        if (!canEditCurrentSession() || !dbDoc) {
           alert("Only the Bank can reset this poker group.");
           return;
         }
 
+        const sessionRef = dbDoc;
+        const generation = sessionGeneration;
+        const userId = currentUser.uid;
+        const archiveRef = currentGroupId
+          ? getGroupArchive(currentGroupId)
+          : getUserArchive();
 
-        try {
-          const archiveRef = currentGroupId
-            ? getGroupArchive(currentGroupId)
-            : getUserArchive();
+        if (!archiveRef) {
+          alert("No archive is available.");
+          return;
+        }
 
-          if (!archiveRef) {
-            throw new Error("No signed-in user.");
+        await queueSessionWrite(async () => {
+          if (
+            generation !== sessionGeneration ||
+            sessionRef !== dbDoc ||
+            !currentUser ||
+            currentUser.uid !== userId ||
+            !canEditCurrentSession()
+          ) {
+            alert("The active session changed. Archive cancelled.");
+            return;
           }
 
-          await archiveRef.add({
-            players: state.players,
-            archivedAt: firebase.firestore.FieldValue.serverTimestamp()
-          });
+          try {
+            if (confirmedSessionPlayers === null) {
+              throw new Error("SESSION_NOT_CONFIRMED");
+            }
 
-          state = { players: {} };
-          await dbDoc.set(state);
+            if (
+              !resetModalSession ||
+              resetModalSession.generation !== generation ||
+              resetModalSession.sessionRef !== sessionRef ||
+              resetModalSession.players !== confirmedSessionPlayers
+            ) {
+              throw new Error("SESSION_CHANGED");
+            }
 
-          closeResetModal();
+            const expectedPlayers = resetModalSession.players;
+            const archiveDoc = archiveRef.doc();
 
-        } catch (e) {
-          console.error("Archive/reset failed", e);
-          alert("Could not archive the game. The current session was not cleared.");
-        }
+            await firestore.runTransaction(async (transaction) => {
+              const snapshot = await transaction.get(sessionRef);
+              const savedPlayers = snapshot.exists
+                ? (snapshot.data().players || {})
+                : {};
 
+              if (JSON.stringify(savedPlayers) !== expectedPlayers) {
+                throw new Error("SESSION_CHANGED");
+              }
+
+              transaction.set(archiveDoc, {
+                players: savedPlayers,
+                archivedAt: firebase.firestore.FieldValue.serverTimestamp()
+              });
+
+              transaction.set(sessionRef, { players: {} });
+            });
+
+            if (
+              generation === sessionGeneration &&
+              sessionRef === dbDoc
+            ) {
+              state = { players: {} };
+              render();
+              closeResetModal();
+            }
+          } catch (e) {
+            console.error("Archive/reset failed", e);
+            alert(e.message === "SESSION_CHANGED"
+              ? "The session changed. Review the latest game before archiving."
+              : "Could not archive the game. The current session was not cleared.");
+          }
+        });
       }
-
       // Discard the game and clear the session.
       async function confirmDeleteAndResetSession() {
-        if (!canEditCurrentSession()) {
+        if (!canEditCurrentSession() || !dbDoc) {
           alert("Only the Bank can reset this poker group.");
           return;
         }
-
 
         const confirmed = confirm(
           "Permanently delete this game without saving it to Archive?"
@@ -2076,19 +2290,60 @@
 
         if (!confirmed) return;
 
-        try {
-          state = { players: {} };
-          await dbDoc.set(state);
+        const sessionRef = dbDoc;
+        const generation = sessionGeneration;
+        await queueSessionWrite(async () => {
+          if (
+            generation !== sessionGeneration ||
+            sessionRef !== dbDoc ||
+            !canEditCurrentSession()
+          ) {
+            alert("The active session changed. Delete cancelled.");
+            return;
+          }
 
-          closeResetModal();
+          try {
+            if (confirmedSessionPlayers === null) {
+              throw new Error("SESSION_NOT_CONFIRMED");
+            }
 
-        } catch (e) {
-          console.error("Delete/reset failed", e);
-          alert("Could not delete the game. The current session was not cleared.");
-        }
+            if (
+              !resetModalSession ||
+              resetModalSession.generation !== generation ||
+              resetModalSession.sessionRef !== sessionRef ||
+              resetModalSession.players !== confirmedSessionPlayers
+            ) {
+              throw new Error("SESSION_CHANGED");
+            }
 
+            const expectedPlayers = resetModalSession.players;
+
+            await firestore.runTransaction(async (transaction) => {
+              const snapshot = await transaction.get(sessionRef);
+              const savedPlayers = snapshot.exists
+                ? (snapshot.data().players || {})
+                : {};
+
+              if (JSON.stringify(savedPlayers) !== expectedPlayers) {
+                throw new Error("SESSION_CHANGED");
+              }
+
+              transaction.set(sessionRef, { players: {} });
+            });
+
+            if (generation === sessionGeneration) {
+              state = { players: {} };
+              render();
+              closeResetModal();
+            }
+          } catch (e) {
+            console.error("Delete/reset failed", e);
+            alert(e.message === "SESSION_CHANGED"
+              ? "The session changed. Review the latest game before deleting."
+              : "Could not delete the game. The current session was not cleared.");
+          }
+        });
       }
-
       // Calculate balances and settlement payments.
       function calcSettlement() {
 
